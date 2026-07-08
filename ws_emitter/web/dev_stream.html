@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<!-- ============================= SCAFFOLDING ===================================
+  dev_stream.html — OBSERVATION harness for the stream.js state machine.
+  It is NOT the 3D client (it draws nothing): overlay with the transition log,
+  hello summary, live counters and final verdict with the case-7 coherence identity
+  (received == end.totals.steps − end.totals.dropped).
+
+  URL parameters:
+    ?url=ws://127.0.0.1:8931   (default; the WS of the emitter or of the negative control)
+    ?expect=<md5>              (optional: simulates main.js's net_md5 comparison;
+                                if hello.net_md5 != expect -> reject())
+
+  NOTE (2026-07-05): the coherence line of THIS scaffolding assumes a COMPLETE
+  connection from the first step (test context). The two-case semantics
+  (complete/late) lives in hud_core.coherenceVerdict and the HUD (ws_hud.md).
+
+  The 7 observable cases (doc ws_stream.md):
+    1 happy:            real player with --ws-port 8931
+    2 close without end: kill -9 the player mid-run
+    3 step without hello: python -m ws_emitter.dev_ws_negativo --port 8940 --caso step-primero
+    4 schema mismatch:  ... --caso schema-malo
+    5 net_md5 mismatch: real player + ?expect=deadbeef
+    6 double hello / broken json: ... --caso hello-doble | json-roto
+    7 wireGaps:         player with --ws-queue-max 2 --ws-stall-drain 0.05
+============================================================================== -->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>SCAFFOLDING stream.js — state machine</title>
+  <style>
+    body { margin: 0; background: #16161a; color: #c9c9d4;
+           font: 13px/1.5 monospace; padding: 16px; }
+    h1 { font-size: 14px; color: #8ecf8e; }
+    #estado { font-size: 16px; font-weight: bold; }
+    #estado.STREAMING { color: #8ecf8e; } #estado.ENDED { color: #7fb3ff; }
+    #estado.RECHAZADO, #estado.SIN_VEREDICTO { color: #ff8080; }
+    pre { background: #101014; padding: 8px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+<h1>SCAFFOLDING stream.js — no rendering; protocol only</h1>
+<div>state: <span id="estado">WAIT_HELLO</span> <span id="razon"></span></div>
+<div id="hello">hello: —</div>
+<div id="contadores">counters: —</div>
+<div id="veredicto"></div>
+<pre id="log"></pre>
+<script type="module">
+  import { StreamClient } from './js/stream.js';
+
+  const q = new URLSearchParams(location.search);
+  const url = q.get('url') || 'ws://127.0.0.1:8931';
+  const expect = q.get('expect');
+  const $ = (id) => document.getElementById(id);
+  const t0 = performance.now();
+  const log = (m) => { $('log').textContent +=
+    `[${((performance.now() - t0) / 1000).toFixed(3)}s] ${m}\n`; };
+
+  log(`conectando a ${url}${expect ? ` (expect=${expect})` : ''}`);
+  const sc = new StreamClient(url);
+
+  sc.onStateChange((st, reason) => {
+    $('estado').textContent = st; $('estado').className = st;
+    $('razon').textContent = reason ? `— ${reason}` : '';
+    log(`ESTADO -> ${st}${reason ? `  (${reason})` : ''}`);
+  });
+  sc.onHello((h) => {
+    $('hello').textContent = `hello: schema=${h.schema_version} site=${h.site} ` +
+      `dt=${h.dt} layers=${JSON.stringify(h.layers)} net_md5=${h.net_md5.slice(0, 8)}…`;
+    log(`hello recibido (net_md5=${h.net_md5.slice(0, 12)}…)`);
+    if (expect && h.net_md5 !== expect) {
+      sc.reject(`net_md5 ${h.net_md5.slice(0, 8)}… != esperado ${expect.slice(0, 8)}…`);
+    }
+  });
+  sc.onEnd((e) => {
+    const s = sc.stats();
+    const esperado = e.totals.steps - e.totals.dropped;
+    const ok = s.received === esperado;
+    $('veredicto').textContent =
+      `END: sonda=${e.sonda.status} seq_final=${e.seq_final} ` +
+      `totals={steps:${e.totals.steps}, dropped:${e.totals.dropped}} | ` +
+      `coherencia caso 7: received=${s.received} == steps−dropped=${esperado} ` +
+      `-> ${ok ? 'OK' : 'DESAJUSTE'}`;
+    log(`end: ${e.sonda.status}; coherencia ${ok ? 'OK' : 'DESAJUSTE'} ` +
+        `(received=${s.received}, steps=${e.totals.steps}, dropped=${e.totals.dropped}, ` +
+        `wireGaps=${s.wireGaps})`);
+  });
+  sc.connect();
+
+  let consumed = 0, skippedTotal = 0, lastTsim = null;
+  (function paint() {                       // consumer at paint cadence:
+    const got = sc.takeLatest();            // makes the coalescing observable
+    if (got) { consumed++; skippedTotal += got.skipped; lastTsim = got.step.t_sim; }
+    const s = sc.stats();
+    $('contadores').textContent =
+      `contadores: received=${s.received} consumidos=${consumed} ` +
+      `coalescing(skipped)=${skippedTotal} wireGaps=${s.wireGaps} ` +
+      `postTerminal=${s.postTerminal} lastSeq=${s.lastSeq} t_sim=${lastTsim}`;
+    requestAnimationFrame(paint);
+  })();
+</script>
+</body>
+</html>

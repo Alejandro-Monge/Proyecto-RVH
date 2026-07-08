@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<!-- dev_replay.html — headless replay SCAFFOLDING for the ws_log (3D panel of the
+  demo). NOT production. EXACT REPLICA of index.html's render setup (same scene, same
+  camera, same EntityLayer) but DRIVEN by hooks (window.__setHello / __applyStep /
+  __render) instead of the WebSocket → puppeteer applies the ws_log steps in order and
+  captures per frame. Equality with index.html is validated by the spot-check (offline
+  frame vs live browser of the same step). FIXED camera (no OrbitControls): render
+  determinism. -->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>dev — ws_log replay</title>
+  <style>html,body{margin:0;height:100%;background:#16161a;overflow:hidden;}</style>
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three/three.module.js",
+                 "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { loadScene, sumoToThree } from './js/net_scene.js';
+  import { EntityLayer } from './js/entities.js';
+
+  const cfg = await (await fetch('./config.json')).json();
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(1);                       // fixed (determinism; not devicePixelRatio)
+  document.body.appendChild(renderer.domElement);
+  const scene3 = new THREE.Scene();
+  scene3.background = new THREE.Color(0x16161a);
+
+  const { netMd5, bounds, group } = await loadScene(`./${cfg.scene}`, cfg.presentation_3d);
+  scene3.add(group);
+  // CAMERA identical to index.html (same initial framing), but FIXED: lookAt(center)
+  // replaces controls.target+update (same result for the initial frame).
+  const cx = (bounds.xmin + bounds.xmax) / 2, cy = (bounds.ymin + bounds.ymax) / 2;
+  const span = Math.max(bounds.xmax - bounds.xmin, bounds.ymax - bounds.ymin);
+  const center = sumoToThree(cx, cy, 0);
+  const camera = new THREE.PerspectiveCamera(
+    50, window.innerWidth / window.innerHeight, 0.1, 10 * span);
+  // DEMO 3D panel camera (Israel's presentation choice, 2026-07-05): from the SOUTHWEST
+  // and closer. sumoToThree=(x,h,-y) → three.x+ = East, three.z+ = South; -x = West.
+  // Before (0.3, 0.8, 0.3) = southeast; now (-0.24, 0.62, 0.24) = southwest ~0.78x of
+  // distance (same elevation angle, closer). It diverges from index.html's default
+  // framing on purpose: it is the shot chosen for the video.
+  // ?cam=K scales the distance (K<1 = more zoom, same angle). MESSAGES used K=1;
+  // VISION asks for a bit more zoom (K<1). Default 1 → does not change what is already
+  // rendered.
+  const camK = parseFloat(new URLSearchParams(location.search).get('cam') || '1') || 1;
+  camera.position.set(center.x - span * 0.24 * camK, span * 0.62 * camK,
+                      center.z + span * 0.24 * camK);
+  camera.lookAt(center);
+
+  let layer = null;
+  const render = () => renderer.render(scene3, camera);
+  render();                                        // empty scene (before the hello)
+
+  // ---- hooks for puppeteer (no WebSocket) ----
+  window.__netMd5 = netMd5;
+  window.__setHello = (hello) => { layer = new EntityLayer(scene3, hello); render(); };
+  window.__applyStep = (step) => { if (layer) { layer.apply(step); } };
+  window.__render = () => render();
+  window.__size = () => layer ? layer.size() : 0;
+  window.__ready = true;                           // probe: the page loaded modules + scene
+</script>
+</body>
+</html>

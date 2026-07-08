@@ -1,0 +1,10 @@
+{
+  "name": "gemelo-rvh-demo-recorder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dev tooling (not runtime): headless replay of the ws_log plus offline composition of 3-panel demos.",
+  "type": "module",
+  "devDependencies": {
+    "puppeteer": "24.10.2"
+  }
+}

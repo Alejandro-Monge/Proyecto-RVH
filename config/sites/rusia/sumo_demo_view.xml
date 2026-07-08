@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SUMO-GUI view for the demo recordings (presentation config).
+  It provides the color SCHEME ("real world") and the antialiasing for the LOOK of the
+  companion video. It does NOT set the framing.
+
+  The FRAMING is MANUAL: the operator opens sumo-gui, frames by hand (zoom/pan) and from
+  there it is not touched (the manual-frame flag in causal_player / driver_replay). The
+  viewport below is only a STARTING POINT (the window opens roughly centered on the
+  intersection); the final framing is set by the operator's eye, not by this file.
+
+  Antialiasing ON: it is a companion video, not a byte-reproducible artifact, so smooth
+  rendering is prioritized. Set it to "0" if you prefer hard edges (a matter of taste).
+
+  Usage: pass this file as the gui-settings-file of sumo-gui, with window-size 1148,646.
+  NOTE: XML comments cannot contain double hyphens; that is why the flags are named
+  here without their prefix.
+-->
+<viewsettings>
+    <scheme name="real world">
+        <opengl antialiase="1" dither="0"/>
+    </scheme>
+    <viewport zoom="113.336" x="57.0" y="74.0" angle="0.0"/>
+</viewsettings>

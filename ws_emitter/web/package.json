@@ -1,0 +1,4 @@
+{
+  "type": "module",
+  "description": "ws_emitter/web is ESM so Node (>=22) can import the client modules in the protocol tests; the browser ignores it"
+}

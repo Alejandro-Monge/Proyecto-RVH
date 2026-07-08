@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<!-- ============================= SCAFFOLDING ===================================
+  dev_entities.html — VISUAL VALIDATION of entities.js: the first 3D with data.
+  Roadway (net_scene) + stream (stream.js) + vehicles (entities.js) + minimal inline
+  legend and t_sim (the real HUD with WS→render metrics is hud.js, later).
+
+  Validation commands (Israel):
+    A: python3 -m http.server 8300 --directory ws_emitter/web
+    B raw (faithful, ~2 s playback):
+       cd reconstruccion_causal && ../.venv/bin/python scripts/causal_player.py \
+         --csv inputs/cert/mc_2Hz_P00.csv --net inputs/intersection_rusia.net.xml \
+         --out /tmp/ws3d --period-s 0.5 --occupancy-out /tmp/ws3d/occ.csv \
+         --ws-log /tmp/ws3d/ws.jsonl --ws-port 8931 --ws-open-grace 15
+    B REALTIME (real speed, 186 s; the demo mode): ... add --ws-realtime
+    Browser: http://localhost:8300/dev_entities.html   (?url=ws://host:port)
+
+  Checklist (result to docs/modules/ws_entities.md):
+    [ ] vehicles on the correct approaches, advancing in the correct direction
+    [ ] classes distinguishable by dimension (bus 12 m / truck 7.5 m / car 5 m)
+    [ ] provenance visible (translucent UNCERTAIN at the end of each vehicle)
+    [ ] movement at REAL SPEED with --ws-realtime (anchored to t_sim; run:
+        186.3 s of t_sim in 186.3002 s of wall time, drift 0.2 ms)
+============================================================================== -->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>SCAFFOLDING entities — vehicles on the roadway</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #16161a; overflow: hidden; }
+    #ui { position: fixed; top: 8px; left: 8px; color: #c9c9d4;
+          font: 12px/1.6 monospace; user-select: none;
+          background: rgba(16,16,20,.75); padding: 8px 10px; border-radius: 4px; }
+    #estado.RECHAZADO, #estado.SIN_VEREDICTO { color: #ff8080; }
+    #estado.ENDED { color: #7fb3ff; } #estado.STREAMING { color: #8ecf8e; }
+    .sw { display: inline-block; width: 10px; height: 10px; margin-right: 4px; }
+  </style>
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three/three.module.js",
+                 "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+<div id="ui">
+  <div>SCAFFOLDING entities — <span id="estado">WAIT_HELLO</span> <span id="razon"></span></div>
+  <div id="tsim">t_sim: — | seq: — | vehicles: 0 | skipped(coalescing): 0 | wireGaps: 0</div>
+  <div id="veredicto"></div>
+  <!-- provenance legend: MOVED to the HUD (hud.js, a single place — 2026-07-05);
+       to validate with the legend use dev_hud.html -->
+
+</div>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { loadScene, sumoToThree } from './js/net_scene.js';
+  import { StreamClient } from './js/stream.js';
+  import { EntityLayer } from './js/entities.js';
+
+  const $ = (id) => document.getElementById(id);
+  const q = new URLSearchParams(location.search);
+  const wsUrl = q.get('url') || 'ws://127.0.0.1:8931';
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+  const scene3 = new THREE.Scene();
+  scene3.background = new THREE.Color(0x16161a);
+
+  const { netMd5, bounds, group } = await loadScene('./scene_rusia.json');
+  scene3.add(group);
+  const cx = (bounds.xmin + bounds.xmax) / 2, cy = (bounds.ymin + bounds.ymax) / 2;
+  const span = Math.max(bounds.xmax - bounds.xmin, bounds.ymax - bounds.ymin);
+  const center = sumoToThree(cx, cy, 0);
+  const camera = new THREE.PerspectiveCamera(
+    50, window.innerWidth / window.innerHeight, 0.1, 10 * span);
+  camera.position.set(center.x + span * 0.3, span * 0.8, center.z + span * 0.3);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.copy(center);
+  controls.update();
+  const render = () => renderer.render(scene3, camera);
+  controls.addEventListener('change', render);
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    render();
+  });
+  render();
+
+  // ---- stream + entities --------------------------------------------------
+  const sc = new StreamClient(wsUrl);
+  let layer = null, skippedTotal = 0;
+  sc.onStateChange((st, reason) => {
+    $('estado').textContent = st; $('estado').className = st;
+    $('razon').textContent = reason ? `— ${reason}` : '';
+  });
+  sc.onHello((h) => {
+    if (h.net_md5 !== netMd5) {       // the comparison lives in the page (main)
+      sc.reject(`net_md5 ${h.net_md5.slice(0, 8)}… != escena ${netMd5.slice(0, 8)}…`);
+      return;
+    }
+    layer = new EntityLayer(scene3, h);
+  });
+  sc.onEnd((e) => {
+    $('veredicto').textContent =
+      `END: sonda=${e.sonda.status} | steps=${e.totals.steps} dropped=${e.totals.dropped}`;
+  });
+  sc.connect();
+
+  // approved temporal anchoring: rAF ONLY paints; with a new step it applies and
+  // renders; with no new step it does not re-render (except camera interaction)
+  (function paint() {
+    const got = sc.takeLatest();
+    if (got && layer) {
+      layer.apply(got.step);
+      skippedTotal += got.skipped;
+      const s = sc.stats();
+      $('tsim').textContent =
+        `t_sim: ${got.step.t_sim.toFixed(1)} s | seq: ${got.step.seq} | ` +
+        `vehiculos: ${layer.size()} | skipped(coalescing): ${skippedTotal} | ` +
+        `wireGaps: ${s.wireGaps}`;
+      render();
+    }
+    requestAnimationFrame(paint);
+  })();
+</script>
+</body>
+</html>

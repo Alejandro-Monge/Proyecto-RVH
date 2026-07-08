@@ -1,0 +1,32 @@
+# Position of the shadow in SUMO — site-INDEPENDENT parameters.
+# (The site-dependent geometry lives in config/sites/<id>/sumo/lane_map.yaml: approach_axis;
+#  the homography in site.yaml: homography_ref.)
+#
+# DECOMPOSED position-driven model (audited with data):
+#   - LATERAL = classified lane -> SUMO lane (discrete; SUMO centers). NOT filtered.
+#   - LONGITUDINAL = projection of the homography onto the approach edge axis, SMOOTHED
+#     by a CAUSAL constant-velocity filter (past only, zero look-ahead).
+#
+# LONGITUDINAL FILTER — constant-velocity alpha-beta.
+# Why alpha-beta and NOT Kalman (justified, not assumed):
+#   * The model is constant-velocity with approx. STATIONARY noise (measured world jitter
+#     0.06–0.16 m RMS, homogeneous per arm); alpha-beta is the FIXED-GAIN form of the
+#     constant-velocity Kalman in steady state -> same smoothing with less machinery.
+#   * We do NOT need the per-frame covariance/uncertainty (we only push `pos` to SUMO).
+#   * It handles small N per vehicle (some arms cross in few frames) without tuning Q/R.
+#   Kalman remains an improvement path ONLY if later we need per-region uncertainty
+#   (e.g. weighting by the homography error, which varies per arm) — not for this step.
+#
+# alpha = position gain; beta is derived CRITICALLY DAMPED: beta = alpha^2/(2-alpha)
+# (no over-oscillation). EFFECTIVE MEMORY ~ (2-alpha)/alpha steps; with alpha=0.4 ≈ 4 frames
+# ≈ 0.13 s @ 29.58 fps -> SUB-SECOND, as the design requires. The constant-velocity filter
+# does NOT bias a moving target (unlike a simple average, which would lag by meters).
+#
+# CRITICAL WARNING: this memory (~0.13 s) is NOT the reconnection buffer (lost_track_buffer_frames
+# = 140 f ≈ 4.73 s in site.yaml). They are different things: the reconnection buffer waits for evidence
+# to join fragments (continuity Section 7.4); this filter smooths the position jitter (Section 7.2/7.4).
+# Do NOT average the position over the reconnection buffer.
+longitudinal_filter:
+  model: constant_velocity_alpha_beta
+  alpha: 0.4        # validated against the real tracks (reduces jitter without lag).
+                    # beta = alpha^2/(2-alpha) is derived in code (critically damped).

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<!-- ============================================================================
+  index.html — 3D WEB SHADOW (REAL PAGE; promotion of dev_hud.html, 2026-07-05).
+  SHADOW-AGNOSTIC: serves messages (mode 5) and vision (--3d) — the components
+  (entities/hud/stream) are parameterized by hello.layers/occupancy.kind; the scene
+  and the ws_url come from /config.json (webserver from web3d.yaml, no hardcode). The
+  webserver serves the correct scene per profile (net_md5 = the hello's, otherwise it
+  is REJECTED). The dev_*.html remain as inspection scaffolding.
+============================================================================ -->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>3D Shadow</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #16161a; overflow: hidden; }
+    #hud { position: fixed; top: 8px; left: 8px; color: #c9c9d4;
+           font: 12px/1.6 monospace; user-select: none; max-width: 46em;
+           background: rgba(16,16,20,.8); padding: 8px 10px; border-radius: 4px; }
+    #hud .RECHAZADO, #hud .SIN_VEREDICTO { color: #ff8080; }
+    #hud .ENDED { color: #7fb3ff; } #hud .STREAMING { color: #8ecf8e; }
+    #hud table { border-collapse: collapse; margin: 4px 0; }
+    #hud td, #hud th { border: 1px solid #333; padding: 1px 6px; }
+    #hud caption { text-align: left; color: #9a9aa5; }
+    #hud .sw { display: inline-block; width: 10px; height: 10px; margin-right: 4px; }
+    #hud button { margin-top: 6px; font: inherit; }
+  </style>
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three/three.module.js",
+                 "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+<div id="hud"></div>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { loadScene, sumoToThree } from './js/net_scene.js';
+  import { StreamClient } from './js/stream.js';
+  import { EntityLayer } from './js/entities.js';
+  import { Hud } from './js/hud.js';
+  import { ClientMetrics } from './js/hud_core.js';
+
+  // config from the server (single source: web3d.yaml -> /config.json)
+  const cfgResp = await fetch('./config.json');
+  if (!cfgResp.ok) throw new Error(`config.json: ${cfgResp.status}`);
+  const cfg = await cfgResp.json();
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+  const scene3 = new THREE.Scene();
+  scene3.background = new THREE.Color(0x16161a);
+
+  const { netMd5, bounds, group } = await loadScene(`./${cfg.scene}`, cfg.presentation_3d);
+  scene3.add(group);
+  const cx = (bounds.xmin + bounds.xmax) / 2, cy = (bounds.ymin + bounds.ymax) / 2;
+  const span = Math.max(bounds.xmax - bounds.xmin, bounds.ymax - bounds.ymin);
+  const center = sumoToThree(cx, cy, 0);
+  const camera = new THREE.PerspectiveCamera(
+    50, window.innerWidth / window.innerHeight, 0.1, 10 * span);
+  camera.position.set(center.x + span * 0.3, span * 0.8, center.z + span * 0.3);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.copy(center);
+  controls.update();
+  const render = () => renderer.render(scene3, camera);
+  controls.addEventListener('change', render);
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    render();
+  });
+  render();
+
+  const hud = new Hud(document.getElementById('hud'));
+  const metrics = new ClientMetrics();
+  const sc = new StreamClient(cfg.ws_url);
+  let layer = null;
+
+  sc.onStateChange((st, reason) => hud.setState(st, reason));
+  sc.onHello((h) => {
+    if (h.net_md5 !== netMd5) {
+      sc.reject(`net_md5 ${h.net_md5.slice(0, 8)}… != escena ${netMd5.slice(0, 8)}…`);
+      return;
+    }
+    document.title = `Sombra 3D — ${h.shadow}`;   // neutral, specialized by hello
+    hud.setSession(h);
+    layer = new EntityLayer(scene3, h);
+  });
+  sc.onEnd((e) => hud.setEnd(e, sc.stats()));
+  sc.connect();
+
+  (function paint() {
+    const got = sc.takeLatest();
+    if (got && layer) {
+      layer.apply(got.step);
+      render();
+      const tApply = performance.now();
+      metrics.addLatency(tApply - got.tRecv);
+      metrics.addSkipped(got.skipped);
+      hud.setStep(got.step, sc.stats(), layer.counters, layer.size(),
+                  metrics.snapshot());
+    }
+    requestAnimationFrame(paint);
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+# Arm/lane <-> edge/lane mapping of the SUMO net (rusia site).
+# DERIVED from the net by scripts/derive_sumo_lane_map.py — BY GEOMETRY, not by inherited
+# name (E1..E6 are NOT cardinals; confusing them rotates the homography).
+#   arm->edge: by junction coordinates (dominant component vs the central junction).
+#   GT_lane->index: by the right-normal of the direction of travel (index 0 = right lane).
+# DO NOT EDIT BY HAND: re-derive with the script. Runtime reads ONLY this file
+# (digital_shadow/sumo/lane_map.py); the net is touched only by the derivation script.
+#
+# Vocabulary crossover (the trap of the three 'entrada/salida'; site.yaml, geometry Section 2bis):
+#   entry frame = vehicle APPROACHING = edge E_n (approach to J5) = 'salida' of site.yaml.
+#   exit frame  = vehicle MOVING AWAY  = edge -E_n (departure)     = 'entrada' of site.yaml.
+#   GT_lane 1 = the driver's right in travel = lane index 0 (the lane-1 rule,
+#   verified by geometry; entry and exit each use their own edge).
+# `lanes` maps GT_lane (1=right) -> SUMO lane index; the lane id is <edge>_<index>.
+#
+# Validated (5 checks + south->west anchor).
+site_id: rusia
+net_ref: config/sites/rusia/sumo/intersection_rusia.net.xml
+net_md5: 90cc6b86f5f0323f950549f92343ee2b   # additive net-edit :J5_20 (oeste-c2→este-c2, v117)
+derived_by: scripts/derive_sumo_lane_map.py
+derived_date: "2026-06-28"
+central_junction: J5
+arms:
+  sur:
+    entry: {edge: E5, lanes: {1: 0, 2: 1, 3: 2}}   # approach toward J5
+    exit:  {edge: "-E5", lanes: {1: 0}}   # departure from J5
+  norte:
+    entry: {edge: E6, lanes: {1: 0, 2: 1, 3: 2}}   # approach toward J5
+    exit:  {edge: "-E6", lanes: {1: 0}}   # departure from J5
+  este:
+    entry: {edge: E3, lanes: {1: 0, 2: 1, 3: 2}}   # approach toward J5
+    exit:  {edge: "-E3", lanes: {1: 0, 2: 1}}   # departure from J5
+  oeste:
+    entry: {edge: E1, lanes: {1: 0, 2: 1, 3: 2}}   # approach toward J5
+    exit:  {edge: "-E1", lanes: {1: 0, 2: 1}}   # departure from J5
+
+# Longitudinal APPROACH axis per arm (position-driven position piece; from the net, lane 0):
+#   origin = point where SUMO measures pos=0 (start of the lane, arm side).
+#   dir    = unit vector in the direction of travel (toward the central); length = lane length (m).
+#   longitudinal pos = clip((world - origin)·dir, 0, length) -> traci.vehicle.moveTo(laneID, pos).
+#   The lateral does NOT come from here: it is set by the classified lane (lane_map.entry) -> SUMO centers.
+approach_axis:
+  sur: {origin: [78.63, -12.93], dir: [-0.1882, 0.9821], length: 65.13}
+  norte: {origin: [39.58, 137.68], dir: [0.1943, -0.9809], length: 40.91}
+  este: {origin: [165.73, 103.15], dir: [-0.9825, -0.1862], length: 90.76}
+  oeste: {origin: [0.3, 54.4], dir: [0.9789, 0.2042], length: 38.04}
+
+# INTERNAL junction lane per movement (entry_arm->exit_arm), for the GAP FILLING:
+#   the harness interpolates the pos over this lane's shape (requested from traci.lane.getShape) at the
+#   last observed velocity (the turn traversed by a straight line would cut 6-8 m of corner).
+junction_internal:
+  este->norte: ":J5_0_0"
+  este->oeste: ":J5_1_0"
+  este->sur: ":J5_3_0"
+  norte->este: ":J5_14_0"
+  norte->oeste: ":J5_12_0"
+  norte->sur: ":J5_13_0"
+  oeste->este: ":J5_9_0"
+  oeste->norte: ":J5_11_0"
+  oeste->sur: ":J5_8_0"
+  sur->este: ":J5_4_0"
+  sur->norte: ":J5_5_0"
+  sur->oeste: ":J5_6_0"

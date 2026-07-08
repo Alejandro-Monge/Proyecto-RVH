@@ -1,0 +1,40 @@
+# Tracker configuration. ONLY site-INDEPENDENT parameters (algorithm).
+# The site-dependent ones live in site.yaml: `lost_track_buffer_frames` (the site's
+# occlusion duration, shared by both trackers) and the `frame_rate` (derived
+# from site.fps_ref, not duplicated). See docs/modules/tracking.md.
+
+# Active tracker. ByteTrack is the FIXED one; ocsort is for the ablation experiment
+# (nonlinear motion axis). The rest of the pipeline does not notice (same contract).
+tracker_type: bytetrack   # bytetrack | ocsort
+
+# --- SHARED parameters (same meaning in both -> clean ablation) ---
+shared:
+  high_conf_det_threshold: 0.25   # high/low boundary of the two stages (reconciles with the detector's conf 0.10)
+  minimum_iou_threshold: 0.2      # minimum IoU to associate detection<->track
+  minimum_consecutive_frames: 1   # frames to confirm a track (anti-flicker); matched between trackers
+
+# --- ByteTrack-specific ---
+bytetrack:
+  track_activation_threshold: 0.25   # threshold to start a new track (≈ new_track_thresh)
+
+# --- OC-SORT-specific (its MECHANISM; author defaults) ---
+# delta_t: window of the observation-centric velocity and the re-update after
+# occlusion (ORU). direction_consistency_weight: observation-centric momentum (OCM),
+# penalizes associations with inconsistent motion direction. They are what addresses
+# the maneuver during the bus turn (re-associates by last observation + direction).
+ocsort:
+  delta_t: 3
+  direction_consistency_weight: 0.2
+
+# --- Re-id layer (Path D): tracklet reconnection by appearance ---
+# Pipeline (model + thresholds). The site-dependent GATES (temporal window,
+# spatial corridor) live in site.yaml. With enabled:false the layer is a
+# BIT-IDENTICAL passthrough to the base ByteTrack (clean ablation). See docs/modules/tracking.md.
+reid:
+  enabled: false            # default OFF (= exact ByteTrack baseline)
+  model: osnet_x1_0_msmt17  # GENERIC OSNet (floor measurement); interchangeable piece
+  device: "cuda:0"
+  half: true
+  similarity_threshold: 0.6      # minimum cosine to reconnect (CONSERVATIVE, provisional)
+  similarity_margin: 0.05        # the best candidate must beat the 2nd by this; if not, do NOT reconnect (when in doubt, do not cross)
+  embedding_refresh_frames: 15   # embedding refresh of active tracks (not per-frame; bounds GPU cost)

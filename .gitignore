@@ -1,0 +1,28 @@
+# Python virtual environment (recreate with requirements.txt)
+.venv/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# --- Assets pesados: no se versionan (ver README, "Obtaining the large assets") ---
+
+# Pesos de modelo: los descargan ultralytics (YOLO) y boxmot (OSNet) en el
+# primer uso. Solo hacen falta para regenerar tracks desde el video (GPU).
+models/*.pt
+
+# Video crudo: solo se versiona el tramo de 180 s
+# (data/sources/rusia/rusia_tramo_000-180.mp4). El crudo largo / de
+# generalizacion queda fuera; la demo replica artefactos precomputados.
+data/sources/rusia_long/
+
+# Salidas regenerables de las corridas de demo del canal de mensajes.
+reconstruccion_causal/runs/
+
+# Salidas renderizadas y grabaciones (la demo en video de las dos sombras
+# esta publicada en YouTube; no se versiona aqui).
+verify_out/demo_causal/
+verify_out/generalizacion_long/
+verify_out/imagenes_finales/

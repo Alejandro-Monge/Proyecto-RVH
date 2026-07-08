@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<!-- dev_models.html — inspection SCAFFOLDING (not the real page): applies a REAL step
+  from the emitter (dev_step.json) over the scene, without stream, to self-validate the
+  vehicle 3D MODELS + their settling on the roadway (aesthetic front, piece 3).
+  It is not part of the production flow (index.html is the page). -->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>dev — 3D models</title>
+  <style>html,body{margin:0;height:100%;background:#16161a;overflow:hidden;}</style>
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three/three.module.js",
+                 "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { loadScene, sumoToThree } from './js/net_scene.js';
+  import { EntityLayer } from './js/entities.js';
+
+  const cfg = await (await fetch('./config.json')).json();
+  const data = await (await fetch('./dev_step.json')).json();
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+  const scene3 = new THREE.Scene();
+  scene3.background = new THREE.Color(0x16161a);
+
+  const { bounds, group } = await loadScene(`./${cfg.scene}`, cfg.presentation_3d);
+  scene3.add(group);
+  const cx = (bounds.xmin + bounds.xmax) / 2, cy = (bounds.ymin + bounds.ymax) / 2;
+  const span = Math.max(bounds.xmax - bounds.xmin, bounds.ymax - bounds.ymin);
+  const center = sumoToThree(cx, cy, 0);
+  const camera = new THREE.PerspectiveCamera(
+    50, window.innerWidth / window.innerHeight, 0.1, 10 * span);
+  // camera closer and lower to SEE the models and their support on the roadway
+  camera.position.set(center.x + span * 0.28, span * 0.34, center.z + span * 0.28);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.copy(center);
+  controls.update();
+
+  const layer = new EntityLayer(scene3, data.hello);
+  layer.apply(data.step);
+  renderer.render(scene3, camera);
+  window._n = layer.size();   // probe for the screenshot
+</script>
+</body>
+</html>

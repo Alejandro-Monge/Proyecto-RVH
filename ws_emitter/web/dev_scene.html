@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!-- ============================= SCAFFOLDING ===================================
+  dev_scene.html — VISUAL VALIDATION harness for the net_scene.js module IN ISOLATION.
+  It is NOT the 3D client (that will be index.html, later modules): it mounts ONLY the
+  static roadway + OrbitControls, no stream, no entities, no HUD.
+
+  Serve to validate (stdlib one-liner; NOT the final --3d webserver):
+      python3 -m http.server 8300 --directory ws_emitter/web
+      -> http://localhost:8300/dev_scene.html
+
+  Validation checklist (Israel; result to docs/modules/ws_net_scene.md):
+    [ ] the roadway matches the Russia intersection (correct geometry, NOT mirrored:
+        approach orientation as in the SUMO plane)
+    [ ] crossing interior (internals + junction) distinguishable by tint
+    [ ] no quantization artifacts on lane edges (rounding to mm)
+    [ ] smooth orbit/zoom
+============================================================================== -->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>SCAFFOLDING net_scene — rusia roadway</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #16161a; }
+    #banner { position: fixed; top: 8px; left: 8px; color: #9a9aa5;
+              font: 12px monospace; user-select: none; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/three.module.js",
+      "three/addons/": "./vendor/three/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+<div id="banner">SCAFFOLDING net_scene — static roadway only (no stream)</div>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { loadScene, sumoToThree } from './js/net_scene.js';
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x16161a);
+
+  const { netMd5, site, bounds, group } = await loadScene('./scene_rusia.json');
+  scene.add(group);
+  document.getElementById('banner').textContent +=
+    ` | site=${site} net_md5=${netMd5.slice(0, 8)}…`;
+
+  // initial framing from bounds (plane center, camera raised to the south-east)
+  const cx = (bounds.xmin + bounds.xmax) / 2;
+  const cy = (bounds.ymin + bounds.ymax) / 2;
+  const span = Math.max(bounds.xmax - bounds.xmin, bounds.ymax - bounds.ymin);
+  const center = sumoToThree(cx, cy, 0);
+  const camera = new THREE.PerspectiveCamera(
+    50, window.innerWidth / window.innerHeight, 0.1, 10 * span);
+  camera.position.set(center.x + span * 0.35, span * 0.9, center.z + span * 0.35);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.copy(center);
+  controls.update();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  renderer.setAnimationLoop(() => renderer.render(scene, camera));
+</script>
+</body>
+</html>

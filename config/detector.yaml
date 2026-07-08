@@ -1,0 +1,33 @@
+# Detector configuration. It does NOT depend on the site (the model belongs to the
+# pipeline, not to the intersection); this is why it lives apart from site.yaml. The
+# active class filter DOES belong to the site and is read from site.yaml (`class_set`).
+
+model:
+  # Pretrained COCO weights (Ultralytics). YOLOv8x = the highest-accuracy model in
+  # the family. Switching to a lighter model (yolov8m/s...) means changing ONLY this
+  # line, without touching code. If the file is not in weights_dir, it is downloaded.
+  weights: yolov8x.pt
+  weights_dir: models   # relative to the project root (gitignored)
+
+inference:
+  # OPERATIONAL confidence threshold (single regime). 0.10 = input for the second
+  # association stage of ByteTrack (which recovers occlusions and works between ~0.1 and
+  # the tracker's high_conf_det_threshold). The detector emits EVERYTHING it sees
+  # above ~0.1; if a visualization tool wants only strong boxes,
+  # filter in the VISUALIZATION, not here (the detector stays "dumb").
+  # NOTE: the previous 0.25 was a visual PRESENTATION threshold, NOT an operational one.
+  # PROVISIONAL: its final value is justified with a sensitivity analysis
+  # against the ground truth (it is not set by eye). See docs/modules/tracking.md.
+  confidence: 0.10
+  iou: 0.7        # IoU threshold for NMS (Ultralytics default)
+  # INTER-CLASS NMS: suppresses the double box of DIFFERENT CLASSES over the same vehicle (bus+truck),
+  # the cause of the 11 cross-class duplicates (front b). Verified: it removes 4138 cross-class boxes,
+  # 0 real vehicles lost, 1 good track fragmented and reconnected. It does NOT touch the 25 same-class ones.
+  agnostic_nms: true
+  imgsz: 640      # side of the inference image (Ultralytics default)
+  device: "cuda:0"
+  # FP16: real-time deployment / embedded hardware form (Jetson). The accuracy
+  # gain of FP32 is marginal for this application, so FP16 is measured.
+  # Knob: if visual validation showed a noticeable loss of detections, raise to
+  # FP32 (half: false) and compare — only then.
+  half: true

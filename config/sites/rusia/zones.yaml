@@ -1,0 +1,120 @@
+# Zones of the Rusia site — polygons in the IMAGE PLANE (pixels).
+#
+# Why a separate file and not in site.yaml: the zones are SITE parameters
+# (dependent on the geometry and the camera), but they are lists of vertices that
+# would saturate site.yaml. Here they all live together and readable. Design criterion
+# (see docs/site_rusia_geometry.md Section 6): the ARM classification is done in the image
+# plane (pixel polygons), NOT by projecting to the ground —robust where the
+# homography is worst (south/west horizon) and enough for a coarse decision.
+#
+# CONTRACT of the polygons:
+#   - Coordinates in image PIXELS at the site's full resolution
+#     (frame_width x frame_height of site.yaml = 1200 x 646). They are NOT from the
+#     matplotlib PNG or from any scaled view.
+#   - ORDERED vertices; the polygon CLOSES implicitly from the last to the
+#     first (the first vertex is not repeated at the end).
+#   - Membership by the vehicle's GROUND-CONTACT point (gx, gy) = ((x1+x2)/2, y2),
+#     see digital_shadow/geometry/ground_contact.py. NOT the centroid.
+#
+# These zones are MARKED with scripts/select_exclusion_zone.py (and the future route-zone
+# marker) over the frame with trajectories; they are PROMOTED here after reviewing
+# the preview. They are NOT edited by hand except for a documented point correction.
+#
+# IMPORTANT: this file only STORES the geometry. The APPLICATION of the zones in
+# the pipeline (the exclusion goes AFTER the detector and BEFORE the tracking/inference;
+# the detector stays "dumb" and reusable) is a separate step, not yet done.
+
+site_id: rusia
+reference_frame: verify_out/homography_improved/clean_frame_2541.png  # frame it was marked on
+frame_width: 1200    # must match site.yaml (sanity validation on load)
+frame_height: 646
+
+# --- EXCLUSION zones ---
+# Regions whose traffic is NOT of the intersection and must be discarded before
+# tracking/inference. A vehicle whose ground contact falls inside is excluded.
+exclusion_zones:
+  oeste_parqueadero:
+    description: >
+      Parqueadero real de la boca OESTE (sup-der en imagen): vehículos
+      estacionados FUERA de la calzada, sobre tierra, tras el bordillo. YOLO los
+      detecta bien pero NO son tráfico. NO confundir con el clúster estático del
+      SUR (sup-izq), que es tráfico DETENIDO EN ROJO y NO se excluye.
+    arm: oeste
+    marked_by: israel
+    marked_date: "2026-06-05"
+    source: scripts/select_exclusion_zone.py   # interactive marking by clicks
+    # Quantitative verification (over verify_out/tracks_rusia.csv, ground contact):
+    #   inside the polygon: tid12 (4669 obs, 100%), tid116 (2444, 100%),
+    #   tid36 (445, 100%) = parked; tid128 (106, a parking maneuver).
+    #   0 through-traffic tracks with any point inside -> it does not bite into the roadway.
+    #   The SOUTH cluster completely outside.
+    polygon_px:
+      - [1196.95, 51.51]
+      - [1122.62, 86.23]
+      - [1108.51, 123.66]
+      - [1164.40, 156.22]
+      - [1195.32, 168.15]
+      - [1199.00, 152.42]
+      - [1198.64, 68.03]
+
+# --- Stop lines per arm ---
+# Segment [FIRST_lane_end, RIGHT_TURN_end] of each stop line, in PIXELS at
+# full resolution (1200x646). Taken from the homography control points
+# (verify_out/homography_gcp/control_points.csv: rows *-SL-primer and *-SL-giroD). They are PROMOTED
+# here (site config) so that the event-per-track layer does NOT carry loose calibration
+# constants in its logic — site geometry in the image plane, same house as the exclusion.
+#
+# USE: they define the physical INSTANT of the vehicle's entry/exit = when its ground contact
+# CROSSES the stop line (the SAME instant the human GT measures). The crossing is computed as the
+# signed distance from the ground contact to this segment, oriented toward the image center; entry =
+# first crossing −→+, exit = last +→−. See docs/modules/track_events.md.
+stop_lines:
+  sur:   [[372.40, 107.98], [232.65, 147.04]]
+  norte: [[749.22, 469.83], [942.93, 336.52]]
+  este:  [[157.69, 308.44], [301.21, 462.02]]
+  oeste: [[874.26, 191.87], [689.10, 125.46]]
+
+# --- Lane bands (ENTRY and EXIT) per arm ---
+# CALIBRATED from GT v2 (NOT by eye) via scripts/calibrate_lane_bands.py over the
+# RECONNECTED tracks. `centroids_s` = median of the transverse coord. s (px, projection of the
+# ground contact onto the direction of the stop line) per lane, measured RIGHT AT the crossing of
+# the stop line (a narrow window) — where the analysis showed that the lanes separate, vs the far
+# field that hides them (verified also for EXIT: it separates better at the crossing than farther out).
+# Classification = NEAREST CENTROID. Entry and exit share the plane (stop_lines) and the
+# transverse axis; they differ in the DIRECTION of the crossing (entry first −→+, exit last +→−) and in the
+# centroids → NO new "egress line" or clicks or homography needed.
+#
+# RESOLUTION PER ARM (the rule: individual lane where its classification error is of the order
+# of the arm error ~5-16% and there is a sample that supports it; grouped/unresolved if it exceeds it or is missing).
+# TWO TYPES of limit, both real (see docs/modules/lane_classifier.md):
+#   ENTRY:
+#     east, north : per_lane (3 lanes; d'≥4, LOO ~0-5%).
+#     west        : grouped (1 · {2,3}); pair 2-3 = SENSOR limit (the camera does not separate, ~20%, does not improve with data).
+#     south       : arm_only; SAMPLE limit, not physical (at the stop line it separated, but N=10 with 4/14 without a clean approach).
+#   EXIT:
+#     east        : per_lane (2); ~14% error BEHAVIORAL (drivers use any egress lane: GT left 4/2, right 4/1, through 7/6) → a FAITHFUL shadow reflects that human dispersion, it does not correct it; within band → individual.
+#     west        : per_lane (2); LOO 0/17 at the crossing.
+#     north, south: per_lane with 1 egress lane (trivial; N/S have 1 lane that moves away).
+# Applied in scripts/derive_track_events.py (entry_lane, exit_lane). Validation: measure_lane_accuracy.py.
+lane_bands:
+  entry:
+    este:  {resolution: per_lane, centroids_s: {1: 202.2, 2: 156.9, 3: 111.1}}
+    norte: {resolution: per_lane, centroids_s: {1: 189.9, 2: 147.2, 3: 101.9}}
+    oeste: {resolution: per_lane, centroids_s: {1: 164.6, 2: 123.4, 3: 95.3}}   # per_lane; c2/c3 = calibrator medians over the corrected GT (2|3 gap ~28 px); c1 keeps its calibration.
+    sur:   {resolution: per_lane, centroids_s: {1: 139.5, 2: 106.0, 3: 71.1}}   # per_lane; separates cleanly geometrically (gaps ~34px, sd ≤4.3, LOO 11/11) BUT with a SCARCE SAMPLE n=4/3/4 — EXPLICIT LIMITATION: not reportable as validated classification until validated with more sample (long video + south GT). Centroids = diagnostic medians.
+  exit:
+    este:  {resolution: per_lane, centroids_s: {1: 45.6, 2: 74.0}}
+    norte: {resolution: per_lane, centroids_s: {1: 21.8}}
+    oeste: {resolution: per_lane, centroids_s: {1: 24.3, 2: 66.5}}   # c2 derived from the corrected GT (exit_lane 2→1 in ev44/46/49/50/51 sur→oeste + ev69: the 5 mislabeled ones leave group 2).
+    sur:   {resolution: per_lane, centroids_s: {1: 24.0}}
+
+# PRESENTATION layer (only the demo drawing; it does NOT touch the measured shadow of Section 7). Causal dead-band
+# that freezes the jitter of the stopped one. X in image px (perceptual uniformity). It is a COMPROMISE
+# (there is no X that separates jitter vs slow movement cleanly): a larger X kills more jitter but steps the slow movement more and shifts the freeze
+# by up to X px. Tunable.
+presentation:
+  smooth_deadband_px: 8
+  # window (s) of the moving median that RE-CENTERS the freeze anchor: it covers several periods of the
+  # jitter (6–14 Hz) → stable median = real center (without the ≤X offset of the entry point). In a slow
+  # creep the window FOLLOWS the advance (no accumulated offset).
+  smooth_median_window_s: 0.5

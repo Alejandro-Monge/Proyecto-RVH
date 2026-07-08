@@ -1,0 +1,215 @@
+# Approach OCCUPANCY zones for the Rusia site — a NEW layer, independent of the
+# causal pipeline.
+#
+# A FILE SEPARATE from zones.yaml ON PURPOSE: zones.yaml is pinned by md5 in the
+# guard of the causal command and of the figures; this layer iterates with its own
+# life cycle and must not break those pins. It will be pinned in common.py when the layer closes.
+#
+# CONTRACT (identical to zones.yaml): coordinates in PIXELS at full resolution
+# (1200x646), ORDERED vertices with implicit closing last->first, membership
+# by the GROUND-CONTACT point (gx, gy) = ((x1+x2)/2, y2).
+#
+# ORIENTATION: entry_side = [0, 1] -> the v0->v1 edge is the ENTRY side
+# (outer, back of the queue); the exit side is toward the arm's stop line
+# (stop_lines of zones.yaml). Validated BLOCKING when drawing and when loading: the entry
+# edge must lie farther from the stop line than the polygon's centroid.
+#
+# COUNTING SEMANTICS (two levels): arm = inside the 'arm' polygon (reliable at the
+# back); lane k = inside lanes[k] (independent depth, coverage
+# declared below); inside-arm-outside-lanes = the residual channel 'sin_carril'.
+# Fallback to a neighboring lane is FORBIDDEN. INSTANTANEOUS per-frame count (no speed
+# threshold; a speed-based variant = a future refinement with sensitivity).
+#
+# DECLARED COVERAGES (over the preview and the measured purity data): north
+# and east full in 1-3; west c1 full, c2/c3 partial
+# (c2/c3 overlap = declared sensor limit; tid76 GT-c3 runs along the c2 band);
+# south c1 full, c2 MINIMAL partial (~1 position, 17 px), c3 partial. The shortest
+# lane will be the noisiest against GT: declared, it is not lengthened.
+
+site_id: rusia
+reference_frame: verify_out/homography_improved/clean_frame_2541.png
+frame_width: 1200
+frame_height: 646
+approach_zones:
+  este:
+    marked_by: israel
+    marked_date: '2026-07-02'
+    source: scripts/select_approach_zones.py
+    arm:
+      polygon_px:
+      - [2.72, 449.68]
+      - [0.11, 589.0]
+      - [311.31, 470.51]
+      - [225.37, 381.32]
+      entry_side: [0, 1]
+    lanes:
+      1:
+        polygon_px:
+        - [5.53, 529.16]
+        - [3.07, 584.57]
+        - [306.74, 470.41]
+        - [275.35, 436.88]
+        entry_side: [0, 1]
+        coverage: full
+      2:
+        polygon_px:
+        - [4.78, 527.38]
+        - [3.96, 494.02]
+        - [251.73, 408.75]
+        - [273.82, 435.52]
+        entry_side: [0, 1]
+        coverage: full
+      3:
+        polygon_px:
+        - [3.78, 492.87]
+        - [4.22, 450.1]
+        - [224.9, 382.38]
+        - [249.79, 408.18]
+        entry_side: [0, 1]
+        coverage: full
+  norte:
+    marked_by: israel
+    marked_date: '2026-07-02'
+    source: scripts/select_approach_zones.py
+    arm:
+      polygon_px:
+      - [1196.36, 438.99]
+      - [1198.24, 616.18]
+      - [817.61, 423.99]
+      - [942.87, 335.12]
+      entry_side: [0, 1]
+    lanes:
+      1:
+        polygon_px:
+        - [1194.86, 495.72]
+        - [1194.68, 438.82]
+        - [942.86, 335.49]
+        - [890.89, 372.16]
+        entry_side: [0, 1]
+        coverage: full
+      2:
+        polygon_px:
+        - [1194.54, 498.88]
+        - [1195.75, 558.54]
+        - [846.98, 403.8]
+        - [890.32, 372.68]
+        entry_side: [0, 1]
+        coverage: full
+      3:
+        polygon_px:
+        - [1195.21, 560.38]
+        - [1196.39, 612.69]
+        - [818.72, 423.46]
+        - [846.33, 404.07]
+        entry_side: [0, 1]
+        coverage: full
+  oeste:
+    marked_by: israel
+    marked_date: '2026-07-02'
+    source: scripts/select_approach_zones.py
+    arm:
+      polygon_px:
+      - [1062.88, 5.13]
+      - [1180.77, 1.16]
+      - [805.13, 167.49]
+      - [689.9, 124.63]
+      entry_side: [0, 1]
+    lanes:
+      1:
+        polygon_px:
+        - [977.61, 62.08]
+        - [943.89, 44.95]
+        - [692.42, 124.49]
+        - [743.08, 142.67]
+        entry_side: [0, 1]
+        coverage: full
+      2:
+        polygon_px:
+        - [975.37, 64.07]
+        - [991.38, 72.55]
+        - [776.95, 156.54]
+        - [743.52, 143.79]
+        entry_side: [0, 1]
+        coverage: partial
+        coverage_note: 'solape c2/c3 declarado (limite de sensor del oeste): el conteo
+          per-carril arrastra la mezcla y se reporta con su numero'
+      3:
+        polygon_px:
+        - [863.08, 123.9]
+        - [881.92, 131.74]
+        - [805.23, 166.39]
+        - [778.28, 156.71]
+        entry_side: [0, 1]
+        coverage: partial
+        coverage_note: 'corto (60 px de profundidad): limite de separabilidad c2/c3'
+  sur:
+    marked_by: israel
+    marked_date: '2026-07-02'
+    source: scripts/select_approach_zones.py
+    arm:
+      polygon_px:
+      - [49.5, 14.27]
+      - [108.75, 3.21]
+      - [313.52, 124.45]
+      - [232.15, 148.09]
+      - [210.47, 154.43]
+      entry_side: [0, 1]
+    lanes:
+      1:
+        polygon_px:
+        - [52.52, 15.26]
+        - [76.28, 10.65]
+        - [246.91, 143.28]
+        - [211.75, 153.19]
+        entry_side: [0, 1]
+        coverage: full
+      2:
+        polygon_px:
+        - [261.96, 117.45]
+        - [235.79, 133.15]
+        - [247.83, 143.21]
+        - [284.92, 132.26]
+        entry_side: [0, 1]
+        coverage: partial
+        coverage_note: 'cobertura MINIMA ~1 posicion (17 px); no se alarga: mas profundo
+          mezclaria c1/c3 que no separan'
+      3:
+        polygon_px:
+        - [143.03, 41.48]
+        - [164.13, 36.21]
+        - [312.5, 124.28]
+        - [286.3, 131.82]
+        entry_side: [0, 1]
+        coverage: partial
+        coverage_note: 'parcial (125 px): el fondo no separa del c1'
+
+# --- Working point of the occupancy MEASUREMENT layer ---
+# Calibrated by a joint theta x g sweep against the count series of the occupancy GT
+# (scripts/measure_occupancy_accuracy.py --sweep).
+# Chosen INSIDE the flat plateau of the MAE (0.103-0.106 in theta [0,1.5] x g [0.5,1.0])
+# for the EVENTS tradeoff: fragments 149->20 and ghosts 17->1, at the cost of 4 short
+# free-flow transits in the south (0.3-0.8 s) that are not queue — it prioritizes occupancy
+# fidelity (dammed-up demand) over ephemeral transits. NOT chosen by MAE (indistinguishable
+# across the whole plateau).
+# CAUSALITY (design contract): theta = ACCUMULATED dwell up to the present frame
+# (a condition over the past); g merges when the second fragment has ALREADY appeared. Neither reads
+# the future; both are bounded latency, like the reconstructor's R2 retirement.
+# DECLARED LIMITS (not corrected by threshold): IN-SAMPLE calibration over the single
+# 180 s clip — it does NOT migrate to the paper as validation; a structural floor of ~0.10 veh of MAE and a deficit
+# localized in south/c3 (queue censored at far field) = a SENSOR limit.
+measurement:
+  theta_s: 0.75        # minimum dwell in the zone to count (s)
+  merge_gap_s: 0.5     # merge of presence gaps of the same track (s)
+
+# --- Presentation of the vision shadow (NOT a metric; here and not in zones.yaml
+# because zones.yaml is pinned and this iterates with its own cycle) ---
+presentation:
+  # PRESENTATION bound of the HANDOFF marker (box->vehicle bridge): a HELD
+  # marker is retired if the vehicle does not appear within this time (crossing NOT materialized).
+  # It is a presentation CAP, NOT a prediction: at runtime the registry NEVER
+  # queries delay/cross_t/inst_t. Value INFORMED (not derived) by the range of
+  # observed instantiation lags (~0.1-0.5 s, median ~0.37 s): 2.0 s = ~5x the
+  # median, a wide margin. Sensitivity: most handoffs die earlier from
+  # "vid appears" (<0.5 s); lowering it risks retiring a legitimate bridge (flicker),
+  # raising it leaves a ghost for longer. It does NOT affect metrics (contract 3.4).
+  handoff_max_hold_s: 2.0
