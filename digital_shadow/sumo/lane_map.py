@@ -163,14 +163,16 @@ def load_lane_map(
 
     arms: dict[str, ArmEdges] = {}
     for arm, spec in data["arms"].items():
+        en_edge = spec["entry"].get("edge")
+        ex_edge = spec["exit"].get("edge")
         arms[arm] = ArmEdges(
-            entry_edge=str(spec["entry"]["edge"]),
+            entry_edge=str(en_edge) if en_edge is not None else None,
             entry_lanes=MappingProxyType(
-                {int(k): int(v) for k, v in spec["entry"]["lanes"].items()}
+                {int(k): int(v) for k, v in (spec["entry"].get("lanes") or {}).items()}
             ),
-            exit_edge=str(spec["exit"]["edge"]),
+            exit_edge=str(ex_edge) if ex_edge is not None else None,
             exit_lanes=MappingProxyType(
-                {int(k): int(v) for k, v in spec["exit"]["lanes"].items()}
+                {int(k): int(v) for k, v in (spec["exit"].get("lanes") or {}).items()}
             ),
         )
     axis: dict[str, ApproachAxis] = {}

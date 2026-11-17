@@ -1,0 +1,9 @@
+id,arm,world_x,world_y,frame,pixel_x,pixel_y,available,description
+norte_izq,norte,340.98,88.39,data/sources/cuenca/video_cfr_V1S2.mp4,809.65,268.87,True,Marca el punto norte_izq (brazo norte)
+norte_der,norte,343.94,88.39,data/sources/cuenca/video_cfr_V1S2.mp4,797.25,339.46,True,Marca el punto norte_der (brazo norte)
+sur_izq,sur,340.02,76.74,data/sources/cuenca/video_cfr_V1S2.mp4,276.37,200.18,True,Marca el punto sur_izq (brazo sur)
+sur_der,sur,343.25,76.74,data/sources/cuenca/video_cfr_V1S2.mp4,207.68,250.74,True,Marca el punto sur_der (brazo sur)
+este_arr,este,346.6,84.09,data/sources/cuenca/video_cfr_V1S2.mp4,496.74,386.21,True,Marca el punto este_arr (brazo este)
+este_aba,este,346.6,77.98,data/sources/cuenca/video_cfr_V1S2.mp4,221.99,306.07,True,Marca el punto este_aba (brazo este)
+oeste_arr,oeste,338.67,85.24,data/sources/cuenca/video_cfr_V1S2.mp4,679.91,199.22,True,Marca el punto oeste_arr (brazo oeste)
+oeste_aba,oeste,338.67,79.03,data/sources/cuenca/video_cfr_V1S2.mp4,469.08,173.47,True,Marca el punto oeste_aba (brazo oeste)

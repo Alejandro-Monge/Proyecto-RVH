@@ -33,8 +33,8 @@ ocsort:
 reid:
   enabled: false            # default OFF (= exact ByteTrack baseline)
   model: osnet_x1_0_msmt17  # GENERIC OSNet (floor measurement); interchangeable piece
-  device: "cuda:0"
-  half: true
+  device: "cpu"
+  half: false
   similarity_threshold: 0.6      # minimum cosine to reconnect (CONSERVATIVE, provisional)
   similarity_margin: 0.05        # the best candidate must beat the 2nd by this; if not, do NOT reconnect (when in doubt, do not cross)
   embedding_refresh_frames: 15   # embedding refresh of active tracks (not per-frame; bounds GPU cost)

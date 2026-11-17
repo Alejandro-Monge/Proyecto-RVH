@@ -105,8 +105,8 @@ class YoloDetector(Detector):
             conf=self._cfg.confidence,
             iou=self._cfg.iou,
             imgsz=self._cfg.imgsz,
-            device=self._cfg.device,
-            half=self._cfg.half,
+            device="cpu",
+            half=False,
             classes=self._class_ids,
             agnostic_nms=self._cfg.agnostic_nms,   # inter-class NMS (front b, cross-class)
             verbose=False,

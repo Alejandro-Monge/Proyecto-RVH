@@ -62,6 +62,8 @@ class ChainCausalExit(ChainState):
         for arm, seg in self.h.stop_lines.items():
             if arm == self.entry_arm:
                 continue
+            if arm not in self.h.lane_map.arms or self.h.lane_map.arms[arm].exit_edge is None:
+                continue
             p1, nh = dte._inward_normal(seg, self.h.center)
             d = float((p - p1) @ nh)
             prev = self._exit_prev.get(arm)

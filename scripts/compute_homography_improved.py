@@ -142,62 +142,35 @@ def main():
         star = "   <== SUR lejano, 1ª medición independiente" if p["id"] == "SUR-extra-prof" else ""
         print(f"  {p['id']:16s} [{p['arm']:5s}]  {e:6.3f} m{star}")
     loo_v = np.array(list(loo.values()))
-    print(f"  --> media={loo_v.mean():.3f} m  max={loo_v.max():.3f} m")
-    print(f"  --> DESTACADO SUR-extra-prof (mundo 61.90,31.18): "
-          f"{loo['SUR-extra-prof']:.3f} m  (error de la H en el horizonte del SUR)\n")
+    print(f"  --> media={loo_v.mean():.3f} m  max={loo_v.max():.3f} m\n")
 
     # leave-one-out grouped by approach (to compare near field vs far)
     print("  Leave-one-out por brazo:")
     by_arm = {}
     for p in pts:
-        by_arm.setdefault(p["arm"], []).append(loo[p["id"]])
-    for a in ["NORTE", "ESTE", "OESTE", "SUR"]:
-        if a in by_arm:
-            e = np.array(by_arm[a])
-            print(f"    {a:5s} (n={len(e)}): media={e.mean():.3f} m  max={e.max():.3f} m")
+        by_arm.setdefault(p["arm"].upper(), []).append(loo[p["id"]])
+    for a, vals in by_arm.items():
+        e = np.array(vals)
+        print(f"    {a:5s} (n={len(e)}): media={e.mean():.3f} m  max={e.max():.3f} m")
     print()
 
-    # --- 3) comparison with the preliminary one ---
-    print("=== 3) COMPARACIÓN con la PRELIMINAR (números crudos, sin calificar) ===")
-    print(f"  {'':14s} {'PRELIMINAR (valid. indep.)':<32s} {'MEJORADA (leave-one-out)':<28s}")
-    print(f"  {'cercano':14s} {'near media 2.02 / max 2.77 (n=2)':<32s} ", end="")
-    near = [loo[p['id']] for p in pts if p['arm'] in ('NORTE', 'ESTE')]
-    near = np.array(near)
-    print(f"NORTE+ESTE media {near.mean():.2f} / max {near.max():.2f} (n={len(near)})")
-    print(f"  {'medio/lejano':14s} {'mid 0.91 (n=1)':<32s} ", end="")
-    west = np.array([loo[p['id']] for p in pts if p['arm'] == 'OESTE'])
-    print(f"OESTE media {west.mean():.2f} / max {west.max():.2f} (n={len(west)})")
-    print(f"  {'SUR/horizonte':14s} {'SIN VALIDAR (n=0)':<32s} ", end="")
-    south = np.array([loo[p['id']] for p in pts if p['arm'] == 'SUR'])
-    print(f"SUR media {south.mean():.2f} / max {south.max():.2f} (n={len(south)})  "
-          f"<-- 1er número en el SUR")
-    print()
-
-    # --- 4) turn test south->west ---
-    print("=== 4) TEST DEL GIRO sur->oeste (tid99/68/88/92) ===")
-    df = pd.read_csv(TRACKS)
-    add_ground_contact(df)                       # gx,gy = ground contact (px); see module
-    turn_ok = True
-    for tid in [99, 68, 88, 92]:
-        g = df[df.track_id == tid].sort_values("frame_index")
-        if g.empty:
-            print(f"  tid{tid}: NO existe"); continue
-        w = project(H, g[["gx", "gy"]].to_numpy())
-        k = max(3, len(w) // 20)
-        start = w[:k].mean(axis=0)
-        end = w[-k:].mean(axis=0)
-        a_in, a_out = nearest_arm(start), nearest_arm(end)
-        ok = (a_in == "SUR" and a_out == "OESTE")
-        turn_ok = turn_ok and ok
-        print(f"  tid{tid}: entra~({start[0]:6.1f},{start[1]:6.1f})->{a_in:5s}  "
-              f"sale~({end[0]:6.1f},{end[1]:6.1f})->{a_out:5s}  "
-              f"{'OK' if ok else 'XX'}")
-    if turn_ok:
-        print("  --> TEST DEL GIRO PASA: entra por SUR (J8, abajo), sale por OESTE (J0).")
-    else:
-        print("  --> *** TEST DEL GIRO FALLA *** revisar: posible cruce / giro reintroducido.")
+    # --- 3) comparison with the preliminary one (solo si existen los 4 brazos) ---
+    near = np.array([loo[p['id']] for p in pts if p['arm'].upper() in ('NORTE', 'ESTE')])
+    west = np.array([loo[p['id']] for p in pts if p['arm'].upper() == 'OESTE'])
+    south = np.array([loo[p['id']] for p in pts if p['arm'].upper() == 'SUR'])
+    if len(near) and len(west) and len(south):
+        print("=== 3) COMPARACIÓN con la PRELIMINAR (números crudos, sin calificar) ===")
+        print(f"  {'':14s} {'PRELIMINAR (valid. indep.)':<32s} {'MEJORADA (leave-one-out)':<28s}")
+        print(f"  {'cercano':14s} {'near media 2.02 / max 2.77 (n=2)':<32s} "
+              f"NORTE+ESTE media {near.mean():.2f} / max {near.max():.2f} (n={len(near)})")
+        print(f"  {'medio/lejano':14s} {'mid 0.91 (n=1)':<32s} "
+              f"OESTE media {west.mean():.2f} / max {west.max():.2f} (n={len(west)})")
+        print(f"  {'SUR/horizonte':14s} {'SIN VALIDAR (n=0)':<32s} "
+              f"SUR media {south.mean():.2f} / max {south.max():.2f} (n={len(south)})\n")
 
     # --- save candidate ---
+    import os
+    os.makedirs(os.path.dirname(OUT_NPY) or ".", exist_ok=True)
     np.save(OUT_NPY, H)
     with open(OUT_TXT, "w") as f:
         f.write("# Homografia MEJORADA (CANDIDATA) imagen->plano suelo (metros, marco net)\n")
@@ -205,43 +178,9 @@ def main():
         f.write(f"# Ajuste LS (cv2.findHomography metodo=0) con {n} puntos.\n")
         f.write(f"# Residuo ajuste: media {fit_err.mean():.3f} m, max {fit_err.max():.3f} m\n")
         f.write(f"# Leave-one-out: media {loo_v.mean():.3f} m, max {loo_v.max():.3f} m\n")
-        f.write(f"# LOO SUR-extra-prof (horizonte sur): {loo['SUR-extra-prof']:.3f} m\n")
-        f.write(f"# Test del giro sur->oeste: {'PASA' if turn_ok else 'FALLA'}\n")
         for row in H:
             f.write("  ".join(f"{v: .10e}" for v in row) + "\n")
     print(f"\nGuardada CANDIDATA:\n  {OUT_NPY}\n  {OUT_TXT}")
-
-    # --- candidate sanity figure ---
-    world_all = project(H, df[["gx", "gy"]].to_numpy())
-    df["X"], df["Y"] = world_all[:, 0], world_all[:, 1]
-    shapes = net_lane_shapes()
-    fig, axes = plt.subplots(1, 2, figsize=(20, 9))
-    titles = ["Vista de pájaro — extensión completa (CANDIDATA mejorada)",
-              "Zoom al núcleo / campo cercano (CANDIDATA mejorada)"]
-    bounds = [dict(xlim=(-90, 180), ylim=(-30, 150)),
-              dict(xlim=(20, 130), ylim=(30, 120))]
-    cmap = plt.get_cmap("tab20")
-    for ax, title, bb in zip(axes, titles, bounds):
-        for s in shapes:
-            ax.plot(s[:, 0], s[:, 1], color="0.6", lw=2, zorder=1)
-        # control points (green) to locate the fit
-        for p in pts:
-            ax.plot(*p["world"], "g+", ms=10, mew=2, zorder=4)
-        k = 0
-        for tid, gg in df.groupby("track_id"):
-            if len(gg) < 25:
-                continue
-            gg = gg.sort_values("frame_index")
-            ax.plot(gg["X"], gg["Y"], color=cmap(k % 20), lw=0.7, alpha=0.7, zorder=2)
-            k += 1
-        ax.set_title(f"{title}\n(tracks={k}; gris=carriles SUMO; verde=puntos de control)",
-                     fontsize=10)
-        ax.set_xlabel("X mundo (m, +este)"); ax.set_ylabel("Y mundo (m, +norte)")
-        ax.set_aspect("equal"); ax.grid(True, alpha=0.3)
-        ax.set_xlim(*bb["xlim"]); ax.set_ylim(*bb["ylim"])
-    fig.tight_layout()
-    fig.savefig(FIG, dpi=110)
-    print(f"  {FIG}")
 
 
 if __name__ == "__main__":

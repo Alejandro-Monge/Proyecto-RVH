@@ -1,0 +1,33 @@
+# MESSAGES-shadow ↔ GT matching (protocol Section 6) — site parameters.
+#
+# matching_tolerance_s: tolerance window OWN to the messages shadow
+# (Section 6.3: each shadow uses the window relative to its own clock; the
+# visual's 1.0 s is NOT inherited). Set with the sensitivity sweep [0.5, 3.0] s over
+# the 2 Hz / P00 condition (sim clock): a perfect, flat plateau in [1.25, 3.0]
+# (54 matched, dt_entry median +1.066 s); below 1.25 the matching
+# collapses into spurious crossings because the systematic channel delay (~+1.07 s =
+# buffer 1.0 + reconstruction) exceeds the window (control by shared
+# identity: 0/17 correct at 1.0 s). 1.5 s = comfortable center of the plateau.
+# Full curve: window_sweep of the messages matching module.
+site_id: rusia
+# backward compatibility (runs without --freq); the MC sweep runs use `windows`
+matching_tolerance_s: 1.5
+
+# WINDOWS BY FREQUENCY (calibration, PP-sweep condition):
+# window = left edge of the COMMON plateau between P00 and P_MAX of the sweep
+# (P50, the maximum level that exists — the axis is P05..P50) + 0.2 s of margin.
+# Measured edges (Section 6.3 sweep per condition, matched on a sustained plateau):
+#   1Hz: P00→1.8, P50→2.1  => 2.3      2Hz: P00→1.3, P50→1.8 => 2.0
+#   5Hz: P00→1.2, P50→1.9  => 2.1
+# The plateau shifts to the right with loss (the DR widens the tail of the
+# delay): calibrating only at P00 would leave the window short right at high loss.
+windows:
+  1Hz: 2.3
+  2Hz: 2.0
+  5Hz: 2.1
+
+# Declared protocol BOUNDARY ZONE: vehicles
+# stopped ON the stop line — geometric ambiguity of the detector, not
+# channel. Fixed mobility in the 3003s: always the same ids. The aggregator
+# classifies them in a separate channel; they are NEVER added to the channel metrics.
+line_waiters: [v9, v45, v60]

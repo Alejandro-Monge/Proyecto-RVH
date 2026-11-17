@@ -1,0 +1,31 @@
+# LANE→TURN rule calibrated from GT v2 (NOT from the image). It predicts the turn from the entry
+# lane for the PREDICTED destination commit (under delay); via turns.csv → exit arm/edge
+# for changeTarget. DERIVED by scripts/derive_lane_turn_rule.py. Do NOT edit by hand.
+# Resolution = the one the CLASSIFIER delivers (zones.yaml: lane_bands.entry), not the GT's:
+#   per_lane (individual lane) · grouped (west: 1 + {2,3}) · arm_only (south: the classifier
+#   does NOT read the south lane from the image with confidence —complete GT, insufficient image—,
+#   arm prior ~uniform → at runtime FALLBACK with no turn prediction, declared).
+site_id: rusia
+derived_from: data/ground_truth/rusia/ground_truth_rusia_v2_carril_processed.csv
+derived_by: scripts/derive_lane_turn_rule.py
+rule:
+  sur:
+    resolution: per_lane
+    lane_turn: {"1": right, "2": through, "3": left}   # lane/group → turn (empty if arm_only)
+    usable: true   # arm_only (sur) → False: fallback with no prediction
+    arm_prior: {'through': 5, 'right': 5, 'left': 5}   # turn distribution of the arm
+  norte:
+    resolution: per_lane
+    lane_turn: {"1": through, "2": left, "3": left}   # lane/group → turn (empty if arm_only)
+    usable: true   # arm_only (sur) → False: fallback with no prediction
+    arm_prior: {'through': 13, 'left': 6}   # turn distribution of the arm
+  este:
+    resolution: per_lane
+    lane_turn: {"1": right, "2": through, "3": through}   # lane/group → turn (empty if arm_only)
+    usable: true   # arm_only (sur) → False: fallback with no prediction
+    arm_prior: {'through': 18, 'right': 3, 'left': 1}   # turn distribution of the arm
+  oeste:
+    resolution: per_lane
+    lane_turn: {"1": right, "2": through, "3": through}   # lane/group → turn (empty if arm_only)
+    usable: true   # arm_only (sur) → False: fallback with no prediction
+    arm_prior: {'through': 13, 'left': 2, 'right': 2}   # turn distribution of the arm

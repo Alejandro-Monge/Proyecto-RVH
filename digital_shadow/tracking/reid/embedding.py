@@ -35,7 +35,7 @@ class OsnetEmbeddingModel(EmbeddingModel):
     custom model does not drag it along.
     """
 
-    def __init__(self, weights_path: Path, device: str = "cuda:0", half: bool = True) -> None:
+    def __init__(self, weights_path: Path, device: str = "cpu", half: bool = False) -> None:
         self._weights_path = Path(weights_path)
         self._device = device
         self._half = half

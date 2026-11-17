@@ -109,6 +109,8 @@ class ChainState:
         """When the crossing happened and there are ±WINDOW frames after → ORIGIN commit + predicted + instantiate."""
         if self.origin_done or self.cross_idx is None or self.entry_arm in (None, dte.CORE):
             return None
+        if self.entry_arm not in self.h.lane_map.arms or self.h.lane_map.arms[self.entry_arm].entry_edge is None:
+            return None
         if len(self.fr) < self.cross_idx + 3 + 1:      # ±3 lane window = 0.101 s look-ahead
             return None
         g = pd.DataFrame({"frame_index": self.fr, "timestamp_s": self.ts, GROUND_X: self.gx, GROUND_Y: self.gy})

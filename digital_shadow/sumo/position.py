@@ -78,13 +78,15 @@ def raw_pos(H: np.ndarray, axis: ApproachAxis, px: tuple[float, float]) -> float
     return longitudinal_pos(axis, project_to_world(H, px))
 
 
-def resolve_lane(lane_map: SumoLaneMap, arm: str, label) -> tuple[str, str]:
+def resolve_lane(lane_map: SumoLaneMap, arm: str, label) -> tuple[Optional[str], str]:
     """Classified lane label → (SUMO laneID, mode).
 
     mode: 'exact' (lane resolved), 'grouped' (oeste {2,3}: representative = the rightmost one,
     lane 2 — SENSOR limit), 'fallback' (arm_only/unresolved: lane 1, the rightmost one — declared
     limit e.g. sur, NOT a bug). The fine lateral is limited by the classification, not the pos.
     """
+    if arm not in lane_map.arms or lane_map.arms[arm].entry_edge is None:
+        return None, "fallback"
     s = str(label).strip()
     if s.isdigit():
         edge, idx = lane_map.target(arm, "entry", int(s))

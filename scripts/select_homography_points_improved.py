@@ -33,35 +33,30 @@ OUT_CSV = "verify_out/homography_improved/control_points_improved.csv"
 WIN = "Selector puntos de control (homografia MEJORADA)"
 
 FRAMES = {
+    "cuenca":    "data/sources/cuenca/video_cfr_V1S2.mp4",
     "clean2541": "verify_out/homography_improved/clean_frame_2541.png",
     "westfar":   "verify_out/homography_improved/west_clear_frame_1.png",
 }
 
-# (id, world_x, world_y, arm, frame_key, click_instruction)
-# World = net meters. The click only contributes the pixel.
-# Corner mapping: SUR=top-left, OESTE=top-right, ESTE=bottom-left, NORTE=bottom-right.
+# (id, arm, world_x, world_y, frame_key)
 POINTS = [
-    ("SUR-SL-primer",  57.55, 45.45, "SUR",   "clean2541",
-     "SUR (boca SUP-IZQ, lejano): EXTREMO de la linea de pare, lado del PRIMER CARRIL."),
-    ("SUR-SL-giroD",   67.97, 47.43, "SUR",   "clean2541",
-     "SUR (sup-izq): EXTREMO de la linea de pare, lado del carril de GIRO A LA DERECHA."),
-    ("SUR-extra-prof", 61.90, 31.18, "SUR",   "clean2541",
-     "SUR (sup-izq): punto EXTRA a mayor PROFUNDIDAD (mas hacia el horizonte, dentro del brazo)."),
-    ("NORTE-SL-primer",59.98, 97.86, "NORTE", "clean2541",
-     "NORTE (boca INF-DER, cercano): EXTREMO de la linea de pare, lado del PRIMER CARRIL."),
-    ("NORTE-SL-giroD", 46.52, 94.93, "NORTE", "clean2541",
-     "NORTE (inf-der): EXTREMO de la linea de pare, lado del carril de GIRO A LA DERECHA."),
-    ("ESTE-SL-primer", 77.33, 71.46, "ESTE",  "clean2541",
-     "ESTE (boca INF-IZQ, medio): EXTREMO de la linea de pare, lado del PRIMER CARRIL."),
-    ("ESTE-SL-giroD",  74.16, 89.37, "ESTE",  "clean2541",
-     "ESTE (inf-izq): EXTREMO de la linea de pare, lado del carril de GIRO A LA DERECHA."),
-    ("OESTE-SL-primer",38.16, 78.03, "OESTE", "clean2541",
-     "OESTE (boca SUP-DER, lejano): EXTREMO de la linea de pare, lado del PRIMER CARRIL."),
-    ("OESTE-SL-giroD", 40.37, 61.03, "OESTE", "clean2541",
-     "OESTE (sup-der): EXTREMO de la linea de pare, lado del carril de GIRO A LA DERECHA."),
-    ("OESTE-extra-prof",7.46, 54.09, "OESTE", "westfar",
-     "OESTE (sup-der): punto EXTRA a mayor PROFUNDIDAD (lejos hacia J0). [FRAME DISTINTO: oeste despejado]"),
+    ("norte_izq", "norte", 340.98, 88.39, "cuenca"),
+    ("norte_der", "norte", 343.94, 88.39, "cuenca"),
+    ("sur_izq", "sur", 340.02, 76.74, "cuenca"),
+    ("sur_der", "sur", 343.25, 76.74, "cuenca"),
+    ("este_arr", "este", 346.60, 84.09, "cuenca"),
+    ("este_aba", "este", 346.60, 77.98, "cuenca"),
+    ("oeste_arr", "oeste", 338.67, 85.24, "cuenca"),
+    ("oeste_aba", "oeste", 338.67, 79.03, "cuenca"),
 ]
+
+
+def _unpack_point(pt):
+    if len(pt) == 5:
+        pid, arm, wx, wy, key = pt
+        return pid, wx, wy, arm, key, f"Marca el punto {pid} (brazo {arm})"
+    pid, wx, wy, arm, key, instr = pt
+    return pid, wx, wy, arm, key, instr
 
 
 def wrap(text, width=84):
@@ -88,10 +83,16 @@ class Selector:
 
     # loads the frame of the current point if it changed
     def ensure_frame(self):
-        key = POINTS[self.idx][4]
+        _, _, _, _, key, _ = _unpack_point(POINTS[self.idx])
         if key != self.cur_key:
             path = FRAMES[key]
             img = cv2.imread(path)
+            if img is None:
+                cap = cv2.VideoCapture(path)
+                ok, img = cap.read()
+                cap.release()
+                if not ok:
+                    img = None
             if img is None:
                 raise FileNotFoundError(path)
             self.img = img
@@ -136,7 +137,8 @@ class Selector:
                               flags=cv2.INTER_NEAREST, borderValue=(30, 30, 30))
 
         # markers: only those of points on the SAME frame as the current one
-        for i, (pid, wx, wy, arm, key, instr) in enumerate(POINTS):
+        for i, pt in enumerate(POINTS):
+            pid, wx, wy, arm, key, instr = _unpack_point(pt)
             if key != self.cur_key:
                 continue
             c = self.clicks.get(pid)
@@ -151,7 +153,7 @@ class Selector:
                 cv2.putText(view, pid, (int(sx) + 8, int(sy) - 8),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, col, 2)
 
-        pid, wx_, wy_, arm, key, instr = POINTS[self.idx]
+        pid, wx_, wy_, arm, key, instr = _unpack_point(POINTS[self.idx])
         c = self.clicks.get(pid)
         estado = f"marcado px=({c[0]:.0f},{c[1]:.0f})" if c else "sin marcar"
         header = (f"[{self.idx+1}/{len(POINTS)}] {pid}  mundo=({wx_},{wy_})m  "
@@ -221,7 +223,8 @@ class Selector:
             w = csv.writer(f)
             w.writerow(["id", "arm", "world_x", "world_y", "frame",
                         "pixel_x", "pixel_y", "available", "description"])
-            for pid, wx, wy, arm, key, instr in POINTS:
+            for pt in POINTS:
+                pid, wx, wy, arm, key, instr = _unpack_point(pt)
                 c = self.clicks.get(pid)
                 avail = c is not None
                 px = f"{c[0]:.2f}" if avail else ""
@@ -270,7 +273,8 @@ def main():
         return
     print(__doc__)
     print("Puntos (en orden de presentacion):")
-    for i, (pid, wx, wy, arm, key, instr) in enumerate(POINTS, 1):
+    for i, pt in enumerate(POINTS, 1):
+        pid, wx, wy, arm, key, instr = _unpack_point(pt)
         print(f"  {i:2d}. {pid:16s} mundo=({wx},{wy}) [{arm}] frame={key}")
     print("\nAbriendo ventana OpenCV... (necesita display)\n")
     Selector().run()

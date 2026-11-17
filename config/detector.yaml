@@ -25,9 +25,9 @@ inference:
   # 0 real vehicles lost, 1 good track fragmented and reconnected. It does NOT touch the 25 same-class ones.
   agnostic_nms: true
   imgsz: 640      # side of the inference image (Ultralytics default)
-  device: "cuda:0"
+  device: "cpu"
   # FP16: real-time deployment / embedded hardware form (Jetson). The accuracy
   # gain of FP32 is marginal for this application, so FP16 is measured.
   # Knob: if visual validation showed a noticeable loss of detections, raise to
   # FP32 (half: false) and compare — only then.
-  half: true
+  half: false

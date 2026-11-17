@@ -44,11 +44,12 @@ from paper_figures import common  # noqa: E402
 from demo_causal.causal_core import CausalOrchestratorExit  # noqa: E402
 from digital_shadow.config.site import load_site_config  # noqa: E402
 
-VID_W, VID_H, SUMO_W, HUD_H = 1200, 646, 1148, 64
+_SITE_CFG = load_site_config("cuenca")
+VID_W, VID_H, SUMO_W, HUD_H = _SITE_CFG.frame_width, _SITE_CFG.frame_height, 1148, 64
 # dt/fps from the site config (fps_ref EXACT as a Fraction, e.g. "355/12"):
 # float(1/fps_ref) is bit-identical to 12/355 (0x1.14e9a52355d06p-5). FPS only
 # feeds ffmpeg's -r (with .3f it produces the string "29.583").
-FPS_REF = load_site_config("rusia").fps_ref
+FPS_REF = _SITE_CFG.fps_ref
 FPS = float(FPS_REF)
 DT = float(1 / FPS_REF)
 GAP_DT = 2 * DT               # threshold: beyond it there is NO interpolation (R3)
@@ -79,17 +80,19 @@ SHOTS = Path(os.environ.get("SHOTS_DIR", "/tmp/gemelo_rvh_scratch")) / "causal_s
 VIDEOS = {
     "tramo": ROOT / "data/sources/rusia/rusia_tramo_000-180.mp4",
     "largo": ROOT / "data/sources/rusia_long/rusia_long_cfr355-12.mp4",
+    "cuenca": ROOT / "data/sources/cuenca/video_cfr_V1S2.mp4",
 }
 DATA = {
     "tramo": ("verify_out/tracks_rusia.csv", "verify_out/events/rusia/track_events.csv"),
     "largo": ("verify_out/generalizacion_long/tracks_long.csv",
               "verify_out/generalizacion_long/track_events_long.csv"),
+    "cuenca": ("verify_out/tracks_cuenca.csv", "verify_out/events/cuenca/track_events.csv"),
 }
 INPUTS = [
     "digital_shadow/sumo/reconstruct.py", "digital_shadow/perception/detector.py",
-    "config/sites/rusia/sumo/intersection_rusia.net.xml", "config/sites/rusia/site.yaml",
-    "config/sites/rusia/zones.yaml", "config/sites/rusia/sumo/lane_map.yaml",
-    "config/sites/rusia/lane_turn_rule.yaml", "config/sites/rusia/turns.csv",
+    "config/sites/cuenca/sumo/zona_final.net.xml", "config/sites/cuenca/site.yaml",
+    "config/sites/cuenca/zones.yaml", "config/sites/cuenca/sumo/lane_map.yaml",
+    "config/sites/cuenca/lane_turn_rule.yaml", "config/sites/cuenca/turns.csv",
     "scripts/run_harness_viz.py",
 ]
 
@@ -121,23 +124,23 @@ def build_veh_causal(which: str, tracks_path=None, events_path=None):
         from run_harness_demo_long import condition_source, run_events, run_tracking
         print("    [bootstrap largo] derivados ausentes → generándolos (CFR + tracking + eventos)…")
         condition_source(); run_tracking(); run_events()
-    site = load_site_config("rusia")
+    site = load_site_config("cuenca")
     center = np.array([site.frame_width / 2.0, site.frame_height / 2.0])
     tracks = pd.read_csv(tracks_path or (ROOT / tpath)); add_ground_contact(tracks)
     base = pd.read_csv(events_path or (ROOT / epath))
     excluded = set(tracks.track_id.unique()) - set(base.track_id.unique())
     feats = rf.track_features(tracks, center, dte.CORE_RADIUS_PX, dte.WINDOW_FRAMES)
-    lm = load_lane_map("rusia")
-    H = load_homography("rusia")
-    shapes = internal_shapes_from_net(lm, ROOT / "config/sites/rusia/sumo/intersection_rusia.net.xml")
-    rule = load_lane_turn_rule("rusia"); turns = load_turns("rusia")
+    lm = load_lane_map("cuenca")
+    H = load_homography("cuenca")
+    shapes = internal_shapes_from_net(lm, ROOT / "config/sites/cuenca/sumo/zona_final.net.xml")
+    rule = load_lane_turn_rule("cuenca"); turns = load_turns("cuenca")
     orch = CausalOrchestratorExit(
         tracks=tracks, feats=feats,
         reconnector=CausalReconnector(buffer_frames=site.reid_temporal_window_frames,
                                       corridor_px=site.reid_spatial_corridor_px,
-                                      valid_moves=rf.load_valid_movements("rusia")),
+                                      valid_moves=rf.load_valid_movements("cuenca")),
         lane_map=lm, H=H, rule=rule, turns=turns,
-        stop_lines=dte.load_stop_lines("rusia"), lane_bands=dte.load_lane_bands("rusia"),
+        stop_lines=dte.load_stop_lines("cuenca"), lane_bands=dte.load_lane_bands("cuenca"),
         center=center, alpha=load_alpha(), buffer_frames=site.reid_temporal_window_frames,
         excluded=excluded, internal_shapes=shapes, frame_dt=1 / FPS_REF)
     commits, chains = orch.run(RecordingSink())
@@ -205,9 +208,9 @@ def prepare_recon_causal(veh, tr):
     from digital_shadow.sumo.position import load_homography
     from digital_shadow.sumo.presentation import load_presentation, presentation_smooth
     from digital_shadow.sumo.reconstruct import build_path, choose_connection, reconstruct_world
-    lm = load_lane_map("rusia")
-    H_pres = load_homography("rusia")
-    deadband_px, median_window_s = load_presentation("rusia")
+    lm = load_lane_map("cuenca")
+    H_pres = load_homography("cuenca")
+    deadband_px, median_window_s = load_presentation("cuenca")
     for v in veh.values():
         v["depart_lane"], v["segs"] = 0, []
         ok_pred = v["entry_arm"] in lm.arms and v["exit_pred"] in lm.arms
@@ -490,8 +493,8 @@ def _setup(veh):
     from digital_shadow.sumo.stage import SumoStage
     from run_harness_viz import VTYPE, define_vtypes
     from digital_shadow.config.site import load_site_config
-    timeout_s = load_site_config("rusia").lost_track_buffer_frames * DT
-    stage = SumoStage(ROOT / "config/sites/rusia/sumo/intersection_rusia.net.xml",
+    timeout_s = load_site_config("cuenca").lost_track_buffer_frames * DT
+    stage = SumoStage(ROOT / "config/sites/cuenca/sumo/zona_final.net.xml",
                       gui=True, step_length=0.001).start()
     tr = stage._traci
     define_vtypes(tr)
@@ -501,7 +504,7 @@ def _setup(veh):
         "constantes TraCI del readback divergen de traci.constants en el entorno"
     tr.gui.setSchema("View #0", "real world")
     tr.gui.setZoom("View #0", 700)
-    tr.gui.setOffset("View #0", 57.0, 74.4)
+    tr.gui.setOffset("View #0", 342.45, 81.61)
     prepare_recon_causal(veh, tr)
     return stage, tr, SondaTotal(veh, timeout_s), VTYPE
 
@@ -534,8 +537,8 @@ class WaitingBoxLayer:
         self.tr = tr
         self._corners = box_corners
         tracks = pd.read_csv(ROOT / DATA[which][0]); add_ground_contact(tracks)
-        zones = load_approach_zones("rusia")
-        excl, _, _ = dte.load_exclusion_polygons("rusia")
+        zones = load_approach_zones("cuenca")
+        excl, _, _ = dte.load_exclusion_polygons("cuenca")
         # RAW points per frame for the c2-sur rule: the "c1-sur empty" condition is
         # queried with LITERAL occupancy_counts (single source with the metric — an
         # equivalent precomputed value would be a second code path that could diverge
@@ -555,13 +558,13 @@ class WaitingBoxLayer:
         tracks = tracks[sel].copy()
         tracks["arm"] = arm_col[sel]
         tracks["carril"] = lane_col[sel]
-        H = load_homography("rusia")
+        H = load_homography("cuenca")
         world = np.array([project_to_world(H, (gx, gy))
                           for gx, gy in tracks[["gx", "gy"]].to_numpy(float)])
         tracks["wx"], tracks["wy"] = world[:, 0], world[:, 1]
         self.by_frame = {int(f): g[["track_id", "wx", "wy", "class_id", "arm", "carril"]]
                          .to_numpy(object) for f, g in tracks.groupby("frame_index")}
-        lm = load_lane_map("rusia")
+        lm = load_lane_map("cuenca")
         self.angle = {arm: lane_angle_towards_stop(tr.lane.getShape(ae.entry_edge + "_0"))
                       for arm, ae in lm.arms.items()}
         # axis and angle PER LANE (anchoring per the position.py doctrine — lateral to the
@@ -576,7 +579,7 @@ class WaitingBoxLayer:
         self._AlphaBeta, self._longpos = AlphaBetaFilter, longitudinal_pos
         self._alpha_cfg = load_alpha()                     # causal filter (config, like vehicles)
         self._filters: dict[int, object] = {}
-        with open(ROOT / "config/sites/rusia/approach_zones.yaml", encoding="utf-8") as fh:
+        with open(ROOT / "config/sites/cuenca/approach_zones.yaml", encoding="utf-8") as fh:
             mcfg = (yaml.safe_load(fh) or {}).get("measurement") or {}
         cross_t = {int(ch.root): ch.cross_t for ch in chains.values() if ch.cross_t is not None}
         self.trk = WaitingBoxTracker(float(mcfg.get("theta_s", 0.0)),
@@ -847,7 +850,7 @@ def vision_hello_fields(which):
     dims from the vTypes (single source); md5 of network and tracks."""
     import hashlib
     from run_harness_viz import VTYPE, VTYPE_DEF
-    net = ROOT / "config/sites/rusia/sumo/intersection_rusia.net.xml"
+    net = ROOT / "config/sites/cuenca/sumo/zona_final.net.xml"
     tracks = ROOT / DATA[which][0]
 
     def _md5(p):
@@ -855,7 +858,7 @@ def vision_hello_fields(which):
     dims = {vc: {"length_m": VTYPE_DEF[vt][2], "width_m": VTYPE_DEF[vt][3]}
             for vc, vt in VTYPE.items()}
     return {
-        "shadow": "vision", "mode": "replay", "dt": DT, "site": "rusia",
+        "shadow": "vision", "mode": "replay", "dt": DT, "site": "cuenca",
         "frame_geometry": None,                          # demo base: no bbox_px
         "net_md5": _md5(net), "artifact_md5": {"tracks_csv": _md5(tracks)},
         "guard_mode": "assert",
@@ -870,7 +873,7 @@ def run_live(veh, which: str, wb_chains=None, tid_root=None, ws_em=None):
     stage, tr, sonda, VTYPE = _setup(veh)
     wb = WaitingBoxLayer(tr, which, wb_chains) if wb_chains is not None else None
     # handoff registry: only if there are boxes AND the {tid→root} map.
-    handoff = (HandoffRegistry(tid_root, load_handoff_max_hold("rusia"))
+    handoff = (HandoffRegistry(tid_root, load_handoff_max_hold("cuenca"))
                if (wb is not None and tid_root is not None) else None)
     if ws_em is not None:
         ws_em.emit_hello()                               # first line, BEFORE the loop
@@ -926,7 +929,7 @@ def run_readout(veh, which: str):
     from collections import Counter
     from digital_shadow.sumo.lane_map import load_lane_map
     stage, tr, sonda, VTYPE = _setup(veh)
-    lm = load_lane_map("rusia")
+    lm = load_lane_map("cuenca")
     t_end = max(float(v["t"][-1]) + v["delay"] for v in veh.values()) + sonda.timeout_s
     rows, live = [], {}
     for fi in range(int(t_end / DT) + 2):
@@ -968,7 +971,7 @@ def run_readout(veh, which: str):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--video", choices=["tramo", "largo"], default="tramo")
+    ap.add_argument("--video", choices=["tramo", "largo", "cuenca"], default="cuenca")
     ap.add_argument("--live", action="store_true")
     ap.add_argument("--readout", action="store_true")
     ap.add_argument("--waiting-boxes", action="store_true",

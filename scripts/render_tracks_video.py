@@ -28,8 +28,7 @@ from digital_shadow.config import load_site_config
 from digital_shadow.sources.file_source import OpenCVFrameReader
 
 ROOT = Path(__file__).resolve().parent.parent
-CSV = ROOT / "verify_out" / "tracks_rusia.csv"
-ZONES = ROOT / "config" / "sites" / "rusia" / "zones.yaml"
+CSV = ROOT / "verify_out" / "tracks_cuenca.csv"
 CLS = {2: "car", 5: "bus", 7: "truck"}
 
 
@@ -42,16 +41,16 @@ def color_for(tid: int):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--site", default="cuenca", help="ID del sitio en config/sites/<site>")
     ap.add_argument("--max-seconds", type=float, default=None)
     ap.add_argument("--tracks", default=str(CSV),
-                    help="CSV de tracks a dibujar (default: el baseline). Para la reconexión: "
-                         "verify_out/events/rusia/reconnected/tracks_reconnected.csv")
-    ap.add_argument("--label", default="BASELINE ByteTrack-140 reid OFF",
+                    help="CSV de tracks a dibujar (default: verify_out/tracks_cuenca.csv)")
+    ap.add_argument("--label", default="AUDITORIA YOLO+ByteTrack",
                     help="texto del banner inferior")
     ap.add_argument("--class-from", default=None,
                     help="CSV de eventos (track_id,vehicle_class): usa la CLASE ESTABILIZADA por "
                          "voto (constante por vehículo) en vez de la clase por frame")
-    ap.add_argument("--out", default="verify_out/tracks_baseline.mp4")
+    ap.add_argument("--out", default="verify_out/auditoria_yolo.mp4")
     args = ap.parse_args()
 
     # Stabilized class per track (optional): a constant label per #id.
@@ -63,11 +62,20 @@ def main():
                 if c:
                     stab[int(r["track_id"])] = c
 
-    site = load_site_config("rusia")
+    site = load_site_config(args.site)
     fps = float(site.fps_ref)
     W, H = site.frame_width, site.frame_height
-    poly = np.array(yaml.safe_load(ZONES.read_text())["exclusion_zones"]
-                    ["oeste_parqueadero"]["polygon_px"], dtype=np.int32)
+    zones_path = ROOT / "config" / "sites" / args.site / "zones.yaml"
+    zones_data = yaml.safe_load(zones_path.read_text()) if zones_path.is_file() else {}
+    excl_polys = [
+        np.array(z["polygon_px"], dtype=np.int32)
+        for z in (zones_data.get("exclusion_zones") or {}).values()
+        if "polygon_px" in z
+    ]
+    stop_lines = {
+        arm: np.array(seg, dtype=np.int32)
+        for arm, seg in (zones_data.get("stop_lines") or {}).items()
+    }
 
     # CSV -> obs per track and per frame
     by_frame = defaultdict(list)   # frame -> [(tid,x1,y1,x2,y2,cls)]
@@ -79,29 +87,37 @@ def main():
             by_frame[int(r["frame_index"])].append((tid, *box, int(r["class_id"])))
             by_track[tid].append((box[0]+box[2])/2)  # only for counting; parking below
 
-    # parking-lot set (majority of ground contact inside the polygon)
+    # parking-lot set (majority of ground contact inside any exclusion polygon)
     gc_in = defaultdict(lambda: [0, 0])
-    polyf = poly.astype(np.float32)
-    for f, rows in by_frame.items():
-        for tid, x1, y1, x2, y2, _ in rows:
-            inside = cv2.pointPolygonTest(polyf, ((x1+x2)/2, y2), False) >= 0
-            gc_in[tid][0] += int(inside)
-            gc_in[tid][1] += 1
-    parking = {tid for tid, (i, n) in gc_in.items() if i / n >= 0.5}
+    if excl_polys:
+        polyfs = [p.astype(np.float32) for p in excl_polys]
+        for f, rows in by_frame.items():
+            for tid, x1, y1, x2, y2, _ in rows:
+                pt = ((x1 + x2) / 2, y2)
+                inside = any(cv2.pointPolygonTest(pf, pt, False) >= 0 for pf in polyfs)
+                gc_in[tid][0] += int(inside)
+                gc_in[tid][1] += 1
+    parking = {tid for tid, (i, n) in gc_in.items() if n > 0 and i / n >= 0.5}
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     writer = cv2.VideoWriter(str(out), cv2.VideoWriter_fourcc(*"mp4v"), fps, (W, H))
     trails = defaultdict(lambda: deque(maxlen=int(2 * fps)))
+    max_s = args.max_seconds if args.max_seconds is not None else float(site.t1_s)
 
     reader = OpenCVFrameReader(site.video_path)
     idx = 0
     n_frames = 0
     while reader.grab():
-        if args.max_seconds is not None and idx / fps > args.max_seconds:
+        if max_s is not None and idx / fps > max_s:
             break
         img = reader.retrieve()
-        cv2.polylines(img, [poly], True, (0, 165, 255), 2)  # parking-lot exclusion
+        for poly in excl_polys:
+            cv2.polylines(img, [poly], True, (0, 165, 255), 2)
+        for arm, seg in stop_lines.items():
+            cv2.line(img, tuple(seg[0]), tuple(seg[1]), (255, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(img, arm, tuple(seg[0]), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.45, (255, 255, 0), 1, cv2.LINE_AA)
 
         for tid, x1, y1, x2, y2, cls in by_frame.get(idx, []):
             gx, gy = int((x1 + x2) / 2), int(y2)
