@@ -1,0 +1,6 @@
+track_id,n_obs,entry_frame,exit_frame,first_seen_s,last_seen_s,entry_time_s,exit_time_s,entry_time_fallback,exit_time_fallback,entry_gx,entry_gy,exit_gx,exit_gy,entry_dist_center_px,exit_dist_center_px,entry_arm,entry_lane,exit_arm,exit_lane,vehicle_class,status,movement
+0,106,1,106,0.033333,3.533333,0.033333,2.537435,True,False,550.22,222.22,233.67,384.0,127.3,239.3,oeste,,este,2,car,complete,cross
+2,188,1,193,0.033333,6.433333,1.258483,5.212484,False,False,651.9,168.69,282.14,385.0,238.5,203.6,oeste,3,este,2,truck,complete,cross
+41,321,346,666,11.533333,22.2,18.583899,21.149189,False,False,772.08,43.75,206.11,383.69,399.1,261.6,oeste,3,este,2,car,complete,cross
+46,348,428,775,14.266667,25.833333,22.072548,24.850928,False,False,759.25,43.02,235.88,383.86,388.3,237.4,oeste,2,este,2,car,complete,cross
+50,258,569,826,18.966667,27.533333,24.151707,26.645945,False,False,755.55,68.05,289.02,384.4,373.0,198.4,oeste,3,este,2,car,complete,cross

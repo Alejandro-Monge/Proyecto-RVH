@@ -54,11 +54,14 @@
 
   const { netMd5, bounds, group } = await loadScene(`./${cfg.scene}`, cfg.presentation_3d);
   scene3.add(group);
-  const cx = (bounds.xmin + bounds.xmax) / 2, cy = (bounds.ymin + bounds.ymax) / 2;
-  const span = Math.max(bounds.xmax - bounds.xmin, bounds.ymax - bounds.ymin);
+  const fullSpan = Math.max(bounds.xmax - bounds.xmin, bounds.ymax - bounds.ymin);
+  const camView = cfg.camera_view || {};
+  const cx = camView.target ? camView.target[0] : (bounds.xmin + bounds.xmax) / 2;
+  const cy = camView.target ? camView.target[1] : (bounds.ymin + bounds.ymax) / 2;
+  const span = camView.span || fullSpan;
   const center = sumoToThree(cx, cy, 0);
   const camera = new THREE.PerspectiveCamera(
-    50, window.innerWidth / window.innerHeight, 0.1, 10 * span);
+    50, window.innerWidth / window.innerHeight, 0.1, 10 * Math.max(fullSpan, span));
   camera.position.set(center.x + span * 0.3, span * 0.8, center.z + span * 0.3);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.copy(center);

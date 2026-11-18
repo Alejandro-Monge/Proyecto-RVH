@@ -64,7 +64,6 @@ def main():
 
     site = load_site_config(args.site)
     fps = float(site.fps_ref)
-    W, H = site.frame_width, site.frame_height
     zones_path = ROOT / "config" / "sites" / args.site / "zones.yaml"
     zones_data = yaml.safe_load(zones_path.read_text()) if zones_path.is_file() else {}
     excl_polys = [
@@ -99,13 +98,21 @@ def main():
                 gc_in[tid][1] += 1
     parking = {tid for tid, (i, n) in gc_in.items() if n > 0 and i / n >= 0.5}
 
+    reader = OpenCVFrameReader(site.video_path)
+    cap = reader._cap
+    W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    writer = cv2.VideoWriter(str(out), cv2.VideoWriter_fourcc(*"mp4v"), fps, (W, H))
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(str(out), fourcc, fps, (W, H))
+    if not writer.isOpened():
+        reader.release()
+        raise RuntimeError(f"No se pudo inicializar VideoWriter para {out} ({W}x{H})")
     trails = defaultdict(lambda: deque(maxlen=int(2 * fps)))
     max_s = args.max_seconds if args.max_seconds is not None else float(site.t1_s)
 
-    reader = OpenCVFrameReader(site.video_path)
     idx = 0
     n_frames = 0
     while reader.grab():

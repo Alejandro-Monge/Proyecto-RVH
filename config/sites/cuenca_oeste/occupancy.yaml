@@ -1,0 +1,15 @@
+# Approach occupancy (messages shadow) — parameters of the rusia site.
+#
+# halting_speed_mps: stopping threshold. It is NOT a threshold of the team's own:
+# it is SUMO_const_haltingSpeed, SUMO's native criterion (TraCI doc, Lane/Edge
+# Value Retrieval: "halting" = speed < 0.1 m/s, e.g. lastStepHaltingNumber).
+# The native value is adopted so that "stopped" is directly comparable
+# with SUMO's stopping metrics. STRICT comparison (<).
+#
+# lane_map_ref: the approach lanes are read ALWAYS from that file
+# (arms.<arm>.entry), never from the net or from embedded IDs. This file does not
+# duplicate any lane ID on purpose. Path relative to the root of
+# implementacion/.
+site_id: rusia
+lane_map_ref: config/sites/rusia/sumo/lane_map.yaml
+halting_speed_mps: 0.1

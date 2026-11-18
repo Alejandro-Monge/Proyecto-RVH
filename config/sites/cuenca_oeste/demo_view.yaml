@@ -1,0 +1,20 @@
+# View of the demo recordings (offline composition of 3 panels).
+# PRESENTATION config for a COMPANION VIDEO (YouTube + repo), not a measurement
+# artifact: byte-identical cross-run determinism is NOT required (no one re-runs it or
+# byte-compares it). This is why the framing is NOT fixed by a config rectangle.
+#
+# THE FRAMING IS MANUAL: the operator opens the sumo-gui, frames by hand (zoom/pan) and
+# from there the view is not touched (--manual-frame in causal_player / driver_replay). The
+# good framing is the operator's eye, not a number in this file.
+site: rusia
+# sumo-gui window + gui.screenshot dimensions (output canvas, NOT framing).
+window_size: [1148, 646]
+# color scheme file of the view (scheme "real world"). It provides the look, not
+# the framing. The operator may adjust antialiasing to taste (see the .xml).
+scheme_file: sumo_demo_view.xml
+# crop [x0,y0,x1,y1] (px of the 1148x646 shot) that the compositor applies to the
+# REALITY and SHADOW panels: ZOOM to the intersection that DISCARDS the bottom edge (where the
+# gui.screenshot leaves a recording fragment/garbage). Aspect ~1.79 ≈ that of the panel
+# (zoom without distortion). TIED to the manual framing of THIS recording: if it is reframed,
+# readjust. Empty/omitted → no crop.
+panel_crop: [150, 15, 1000, 490]

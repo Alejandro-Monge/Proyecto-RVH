@@ -64,12 +64,15 @@ def main():
     ws_port = args.ws_port or int(cfg["ws_port"])
     scene = args.scene or cfg["scene"]
 
-    Handler.config_payload = json.dumps({
+    payload = {
         "site": cfg["site"],
         "ws_url": f"ws://{ws_host}:{ws_port}",
         "scene": scene,
         "presentation_3d": cfg.get("presentation_3d", {}),   # cosmetic (net_scene applies it)
-    }).encode()
+    }
+    if "camera_view" in cfg:
+        payload["camera_view"] = cfg["camera_view"]
+    Handler.config_payload = json.dumps(payload).encode()
 
     handler = functools.partial(Handler, directory=str(WEB))
     srv = ThreadingHTTPServer((http_host, http_port), handler)

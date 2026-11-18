@@ -26,6 +26,6 @@ rule:
     arm_prior: {'through': 18, 'right': 3, 'left': 1}   # turn distribution of the arm
   oeste:
     resolution: per_lane
-    lane_turn: {"1": right, "2": through, "3": through}   # lane/group → turn (empty if arm_only)
-    usable: true   # arm_only (sur) → False: fallback with no prediction
-    arm_prior: {'through': 13, 'left': 2, 'right': 2}   # turn distribution of the arm
+    lane_turn: {"1": through, "2": through, "3": through}   # flujo directo oeste -> este
+    usable: true
+    arm_prior: {'through': 17}

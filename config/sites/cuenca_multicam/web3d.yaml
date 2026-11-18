@@ -1,0 +1,23 @@
+# web3d.yaml — configuración Web3D para el corredor multi-cámara de Cuenca (Cuenca Oeste + Cuenca).
+site: cuenca_multicam
+http_host: "0.0.0.0"
+http_port: 8301
+ws_host: "localhost"
+ws_port: 8932
+scene: scene_cuenca_multicam.json
+
+vision_http_port: 8301
+vision_ws_port: 8932
+vision_scene: scene_cuenca_multicam.json
+
+# Encuadre inicial de la cámara 3D sobre el punto medio entre ambas intersecciones (453731125 y 577206092)
+camera_view:
+  target: [258.64, 91.22]
+  span: 240.0
+
+presentation_3d:
+  stop_offset_m: 0.0
+  crosswalk_offset_m: 3.0
+  crosswalk_stripe_w: 0.7
+  crosswalk_gap: 1.3
+  arrow_scale: 0.55

@@ -1,0 +1,17 @@
+entry_arm,exit_arm,turn,status
+norte,norte,,impossible
+norte,sur,through,allowed
+norte,este,left,allowed
+norte,oeste,right,allowed
+sur,norte,through,allowed
+sur,sur,,impossible
+sur,este,right,allowed
+sur,oeste,left,allowed
+este,norte,right,allowed
+este,sur,left,allowed
+este,este,,impossible
+este,oeste,through,allowed
+oeste,norte,left,allowed
+oeste,sur,right,allowed
+oeste,este,through,allowed
+oeste,oeste,,impossible

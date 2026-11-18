@@ -1,0 +1,28 @@
+# web3d.yaml — configuration of the 3D web client (messages front, mode 5).
+# SINGLE SOURCE of host/ports/scene: the webserver serves it to the browser as
+# /config.json (index.html consumes it by fetch — no query params or hardcode).
+# The mode 5 scripts read the ports from here (env override for tests).
+site: rusia
+http_host: 127.0.0.1
+http_port: 8300
+ws_host: 127.0.0.1
+ws_port: 8931
+scene: scene_rusia.json
+
+# VISION profile (--3d of run_harness_demo_causal.py): ports DIFFERENT from messages
+# (to run the two shadows at once); shared host. The SCENE differs: the
+# vision shadow runs over ANOTHER net (config/sites/rusia/sumo/…, md5 90cc6b86) than
+# the messages one (c6c84b27) — the client REJECTS if the hello's net_md5 does not match
+# the scene's, so vision serves its own scene derived from its net.
+vision_http_port: 8301
+vision_ws_port: 8932
+vision_scene: scene_vision_rusia.json
+
+# 3D presentation (cosmetic; served in /config.json and the client applies it WITHOUT
+# regenerating the scene). stop↔crosswalk offsets + crosswalk/arrow sizes.
+presentation_3d:
+  stop_offset_m: 0.0         # stop line at the street↔junction edge
+  crosswalk_offset_m: 3.0    # crosswalk shifted toward the interior of the junction (no overlap)
+  crosswalk_stripe_w: 0.7    # wider stripes
+  crosswalk_gap: 1.3         # more spacing → fewer stripes
+  arrow_scale: 0.55          # smaller arrows

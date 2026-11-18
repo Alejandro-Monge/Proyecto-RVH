@@ -100,7 +100,7 @@ class SumoStage:
         traci.start(cmd)
         return self
 
-    def add(self, vid: str, edge: str, lane_index: int, pos: float, speed: float = 0.0,
+    def add(self, vid: str, edge: str, lane_index: int, pos: float = 0.0, speed: float = 0.0,
             vtype: Optional[str] = None) -> None:
         """Instantiate a vehicle at (edge, lane_index, pos) with CONTROL DISABLED. `vtype` allows
         distinguishing car/bus/truck in the GUI (visual fidelity; does not affect the measurement)."""
@@ -109,8 +109,12 @@ class SumoStage:
         if rid not in self._routes:
             t.route.add(rid, [edge])
             self._routes.add(rid)
-        t.vehicle.add(vid, rid, typeID=vtype or self._vtype, departLane=str(lane_index),
-                      departPos=str(pos), departSpeed=str(speed))
+        try:
+            t.vehicle.add(vid, rid, typeID=vtype or self._vtype, departLane=str(lane_index),
+                          departPos=str(float(pos)), departSpeed=str(float(speed)))
+        except Exception:
+            t.vehicle.add(vid, rid, typeID=vtype or self._vtype, departLane="free",
+                          departPos="0", departSpeed="0")
         t.simulationStep()                       # inserts the vehicle
         t.vehicle.setLaneChangeMode(vid, 0)      # NO autonomous lane change
         t.vehicle.setSpeedMode(vid, 0)           # NO car-following/safety

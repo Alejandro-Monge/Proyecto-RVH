@@ -33,7 +33,7 @@ OUT_CSV = "verify_out/homography_improved/control_points_improved.csv"
 WIN = "Selector puntos de control (homografia MEJORADA)"
 
 FRAMES = {
-    "cuenca":    "data/sources/cuenca/video_cfr_V1S2.mp4",
+    "cuenca":    "data/sources/cuenca_oeste/interseccion_A.mp4",
     "clean2541": "verify_out/homography_improved/clean_frame_2541.png",
     "westfar":   "verify_out/homography_improved/west_clear_frame_1.png",
 }

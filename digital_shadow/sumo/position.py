@@ -60,7 +60,14 @@ def load_alpha(project_root: Optional[Path] = None) -> float:
 def project_to_world(H: np.ndarray, px: tuple[float, float]) -> tuple[float, float]:
     """Project an image point (px,py) to world/SUMO coords via the homography (pure, per point)."""
     w = H @ np.array([px[0], px[1], 1.0])
-    return float(w[0] / w[2]), float(w[1] / w[2])
+    d = float(w[2])
+    # Evitar inversión de signo al cruzar la línea de fuga (horizonte lejano):
+    c_w2 = float(H[2, 0] * 424.0 + H[2, 1] * 239.0 + H[2, 2])
+    if c_w2 < 0 and d > -0.5:
+        d = -0.5
+    elif c_w2 > 0 and d < 0.5:
+        d = 0.5
+    return float(w[0] / d), float(w[1] / d)
 
 
 def longitudinal_pos(axis: ApproachAxis, world_xy: tuple[float, float]) -> float:

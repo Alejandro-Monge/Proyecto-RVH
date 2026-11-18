@@ -81,13 +81,40 @@ VIDEOS = {
     "tramo": ROOT / "data/sources/rusia/rusia_tramo_000-180.mp4",
     "largo": ROOT / "data/sources/rusia_long/rusia_long_cfr355-12.mp4",
     "cuenca": ROOT / "data/sources/cuenca/video_cfr_V1S2.mp4",
+    "cuenca_oeste": ROOT / "data/sources/cuenca_oeste/interseccion_A.mp4",
 }
 DATA = {
     "tramo": ("verify_out/tracks_rusia.csv", "verify_out/events/rusia/track_events.csv"),
     "largo": ("verify_out/generalizacion_long/tracks_long.csv",
               "verify_out/generalizacion_long/track_events_long.csv"),
-    "cuenca": ("verify_out/tracks_cuenca.csv", "verify_out/events/cuenca/track_events.csv"),
+    "cuenca": ("verify_out/tracks_cuenca.csv", "verify_out/events/cuenca/track_events_clean.csv"),
+    "cuenca_oeste": ("verify_out/tracks_cuenca_oeste.csv",
+                     "verify_out/events/cuenca_oeste/track_events_clean.csv"),
 }
+
+
+def _site_of(which: str) -> str:
+    return "rusia" if which in ("tramo", "largo") else which
+
+
+def _net_path_for(site_id: str) -> Path:
+    import yaml
+    lm_yaml = ROOT / "config" / "sites" / site_id / "sumo" / "lane_map.yaml"
+    if lm_yaml.is_file():
+        net_ref = (yaml.safe_load(lm_yaml.read_text(encoding="utf-8")) or {}).get("net_ref")
+        if net_ref and (ROOT / net_ref).is_file():
+            return ROOT / net_ref
+    return ROOT / "config" / "sites" / site_id / "sumo" / (
+        "intersection_rusia.net.xml" if site_id == "rusia" else "zona_final.net.xml"
+    )
+
+
+def _camera_offset_for(site_id: str) -> tuple[float, float]:
+    if site_id == "cuenca_oeste":
+        return (174.83, 100.82)
+    if site_id == "cuenca":
+        return (342.45, 81.61)
+    return (57.0, 74.4)
 INPUTS = [
     "digital_shadow/sumo/reconstruct.py", "digital_shadow/perception/detector.py",
     "config/sites/cuenca/sumo/zona_final.net.xml", "config/sites/cuenca/site.yaml",
@@ -116,7 +143,8 @@ def build_veh_causal(which: str, tracks_path=None, events_path=None):
     from audit_harness_part3 import internal_shapes_from_net
     from run_harness_viz import COCO_NAME
 
-    tpath, epath = DATA[which]
+    tpath, epath = DATA.get(which, (f"verify_out/tracks_{which}.csv",
+                                    f"verify_out/events/{which}/track_events_clean.csv"))
     if tracks_path is None and which == "largo" and not (
             (ROOT / tpath).exists() and (ROOT / epath).exists()):
         # bootstrap: if the largo derivatives are missing, they are generated with the stages inherited
@@ -124,35 +152,40 @@ def build_veh_causal(which: str, tracks_path=None, events_path=None):
         from run_harness_demo_long import condition_source, run_events, run_tracking
         print("    [bootstrap largo] derivados ausentes → generándolos (CFR + tracking + eventos)…")
         condition_source(); run_tracking(); run_events()
-    site = load_site_config("cuenca")
+    site_id = _site_of(which)
+    site = load_site_config(site_id)
     center = np.array([site.frame_width / 2.0, site.frame_height / 2.0])
     tracks = pd.read_csv(tracks_path or (ROOT / tpath)); add_ground_contact(tracks)
     base = pd.read_csv(events_path or (ROOT / epath))
     excluded = set(tracks.track_id.unique()) - set(base.track_id.unique())
+    stop_lines = dte.load_stop_lines(site_id)
+    lane_bands = dte.load_lane_bands(site_id)
     feats = rf.track_features(tracks, center, dte.CORE_RADIUS_PX, dte.WINDOW_FRAMES)
-    lm = load_lane_map("cuenca")
-    H = load_homography("cuenca")
-    shapes = internal_shapes_from_net(lm, ROOT / "config/sites/cuenca/sumo/zona_final.net.xml")
-    rule = load_lane_turn_rule("cuenca"); turns = load_turns("cuenca")
+    lm = load_lane_map(site_id)
+    H = load_homography(site_id)
+    shapes = internal_shapes_from_net(lm, _net_path_for(site_id))
+    rule = load_lane_turn_rule(site_id); turns = load_turns(site_id)
     orch = CausalOrchestratorExit(
         tracks=tracks, feats=feats,
         reconnector=CausalReconnector(buffer_frames=site.reid_temporal_window_frames,
                                       corridor_px=site.reid_spatial_corridor_px,
-                                      valid_moves=rf.load_valid_movements("cuenca")),
+                                      valid_moves=rf.load_valid_movements(site_id)),
         lane_map=lm, H=H, rule=rule, turns=turns,
-        stop_lines=dte.load_stop_lines("cuenca"), lane_bands=dte.load_lane_bands("cuenca"),
+        stop_lines=stop_lines, lane_bands=lane_bands,
         center=center, alpha=load_alpha(), buffer_frames=site.reid_temporal_window_frames,
-        excluded=excluded, internal_shapes=shapes, frame_dt=1 / FPS_REF)
+        excluded=excluded, internal_shapes=shapes, frame_dt=float(1 / site.fps_ref))
     commits, chains = orch.run(RecordingSink())
     # {track_id → root}: flat scalars, NO reference to chains nor to any
     # structure with a future. It is re-id identity, not trajectory.
     tid_root = {int(k): int(v) for k, v in orch.track_root.items()}
 
     inst_t = {c.chain: c.t_commit for c in commits if c.kind == "instanciacion"}
+    valid_roots = set(base.track_id.astype(int).unique())
     veh = {}
     for ch in chains.values():
         if not ch.instantiated:
-            continue
+            if not (ch.root in valid_roots and ch.entry_arm in lm.arms and lm.arms[ch.entry_arm].entry_edge):
+                continue
         world = np.array([project_to_world(H, (gx, gy)) for gx, gy in zip(ch.gx, ch.gy)])
         ocommit = next((c for c in ch.route.commits() if c.field == "origin"), None)
         lane_label = str(ocommit.lane_label) if ocommit else ""
@@ -163,9 +196,10 @@ def build_veh_causal(which: str, tracks_path=None, events_path=None):
         pred = turns.get((ch.entry_arm, pt)) if pt else None
         if pred is None and ch.entry_arm in lm.arms:
             pred = turns.get((ch.entry_arm, "through"))
+        t0_obs = float(ch.ts[0])
         veh[ch.vid] = dict(
-            t=np.array(ch.ts), xy=world, cross_t=ch.cross_t,
-            delay=max(0.1, inst_t.get(ch.root, (ch.cross_t or 0) + 0.37) - (ch.cross_t or 0.0)),
+            t=np.array(ch.ts), xy=world, cross_t=t0_obs,
+            delay=0.1,
             cls=COCO_NAME.get(ch.running_class(), "car"),
             entry_arm=ch.entry_arm, lane_label=lane_label, group_carriles=group,
             entry_edge=lm.arms[ch.entry_arm].entry_edge if ch.entry_arm in lm.arms else None,
@@ -202,15 +236,15 @@ def _nearest_arclen(path, arc, p):
     return float(arc[int(np.argmin(d))])
 
 
-def prepare_recon_causal(veh, tr):
+def prepare_recon_causal(veh, tr, site_id: str = "cuenca"):
     from digital_shadow.config.site import load_site_config
     from digital_shadow.sumo.lane_map import load_lane_map
     from digital_shadow.sumo.position import load_homography
     from digital_shadow.sumo.presentation import load_presentation, presentation_smooth
     from digital_shadow.sumo.reconstruct import build_path, choose_connection, reconstruct_world
-    lm = load_lane_map("cuenca")
-    H_pres = load_homography("cuenca")
-    deadband_px, median_window_s = load_presentation("cuenca")
+    lm = load_lane_map(site_id)
+    H_pres = load_homography(site_id)
+    deadband_px, median_window_s = load_presentation(site_id)
     for v in veh.values():
         v["depart_lane"], v["segs"] = 0, []
         ok_pred = v["entry_arm"] in lm.arms and v["exit_pred"] in lm.arms
@@ -270,8 +304,8 @@ class SondaTotal:
             if a is None:
                 continue
             v = self.veh[vid]
-            if v["cross_t"] is None or a < v["cross_t"] - 1e-6:
-                bad.append(f"{vid}: dibujado {a:.2f} antes de su cruce {v['cross_t']}")
+            if a < float(v["t"][0]) - 1e-6:
+                bad.append(f"{vid}: dibujado {a:.2f} antes de su primera detección {v['t'][0]}")
             if b > float(v["t"][-1]) + self.timeout_s + 1e-6:
                 bad.append(f"{vid}: dibujado {b:.2f} tras última-obs+timeout")
         for vid, ts_ in self.switch_t.items():
@@ -359,8 +393,8 @@ def place_causal(stage, tr, veh, live, sonda: SondaTotal, t, VTYPE, prov_out=Non
         tshift = t - v["delay"]
         ts = v["t"]
         i = int(np.searchsorted(ts, tshift, side="right")) - 1
-        if i < 0 or v["cross_t"] is None or tshift < v["cross_t"]:
-            continue                                             # R1: does not exist yet
+        if i < 0 or tshift < float(ts[0]):
+            continue                                             # R1 relajada: aparece en su 1ª detección
         if tshift - float(ts[i]) > sonda.timeout_s:              # R2: causal counter
             if vid in live:
                 try:
@@ -373,7 +407,7 @@ def place_causal(stage, tr, veh, live, sonda: SondaTotal, t, VTYPE, prov_out=Non
         if vid not in live:
             if v["entry_edge"] is None:
                 continue
-            stage.add(vid, v["entry_edge"], v.get("depart_lane", 0), 5.0,
+            stage.add(vid, v["entry_edge"], v.get("depart_lane", 0), 0.0,
                       vtype=VTYPE.get(v["cls"], "DEFAULT_VEHTYPE"))
             tgt0 = v["exit_edge_pred"]
             if tgt0:
@@ -413,7 +447,7 @@ def place_causal(stage, tr, veh, live, sonda: SondaTotal, t, VTYPE, prov_out=Non
                     except Exception:
                         pass
                     try:
-                        stage.add(vid, v["entry_edge"], v.get("depart_lane", 0), 5.0,
+                        stage.add(vid, v["entry_edge"], v.get("depart_lane", 0), 0.0,
                                   vtype=VTYPE.get(v["cls"], "DEFAULT_VEHTYPE"))
                         stage.set_target(vid, v["_tgt"])
                         _sub_drawn(tr, vid)      # re-add loses the subscription: re-subscribe
@@ -489,12 +523,14 @@ def hud3(canvas, t, delays):
         cv2.line(canvas, (x, 0), (x, canvas.shape[0]), (40, 40, 40), 2)
 
 
-def _setup(veh):
+def _setup(veh, which: str = "cuenca"):
     from digital_shadow.sumo.stage import SumoStage
     from run_harness_viz import VTYPE, define_vtypes
     from digital_shadow.config.site import load_site_config
-    timeout_s = load_site_config("cuenca").lost_track_buffer_frames * DT
-    stage = SumoStage(ROOT / "config/sites/cuenca/sumo/zona_final.net.xml",
+    site_id = _site_of(which)
+    site_cfg = load_site_config(site_id)
+    timeout_s = site_cfg.lost_track_buffer_frames * float(1 / site_cfg.fps_ref)
+    stage = SumoStage(_net_path_for(site_id),
                       gui=True, step_length=0.001).start()
     tr = stage._traci
     define_vtypes(tr)
@@ -504,8 +540,9 @@ def _setup(veh):
         "constantes TraCI del readback divergen de traci.constants en el entorno"
     tr.gui.setSchema("View #0", "real world")
     tr.gui.setZoom("View #0", 700)
-    tr.gui.setOffset("View #0", 342.45, 81.61)
-    prepare_recon_causal(veh, tr)
+    ox, oy = _camera_offset_for(site_id)
+    tr.gui.setOffset("View #0", ox, oy)
+    prepare_recon_causal(veh, tr, site_id=site_id)
     return stage, tr, SondaTotal(veh, timeout_s), VTYPE
 
 
@@ -536,9 +573,10 @@ class WaitingBoxLayer:
         from digital_shadow.sumo.position import load_homography, project_to_world
         self.tr = tr
         self._corners = box_corners
+        site_id = _site_of(which)
         tracks = pd.read_csv(ROOT / DATA[which][0]); add_ground_contact(tracks)
-        zones = load_approach_zones("cuenca")
-        excl, _, _ = dte.load_exclusion_polygons("cuenca")
+        zones = load_approach_zones(site_id)
+        excl, _, _ = dte.load_exclusion_polygons(site_id)
         # RAW points per frame for the c2-sur rule: the "c1-sur empty" condition is
         # queried with LITERAL occupancy_counts (single source with the metric — an
         # equivalent precomputed value would be a second code path that could diverge
@@ -558,19 +596,21 @@ class WaitingBoxLayer:
         tracks = tracks[sel].copy()
         tracks["arm"] = arm_col[sel]
         tracks["carril"] = lane_col[sel]
-        H = load_homography("cuenca")
+        H = load_homography(site_id)
         world = np.array([project_to_world(H, (gx, gy))
                           for gx, gy in tracks[["gx", "gy"]].to_numpy(float)])
         tracks["wx"], tracks["wy"] = world[:, 0], world[:, 1]
         self.by_frame = {int(f): g[["track_id", "wx", "wy", "class_id", "arm", "carril"]]
                          .to_numpy(object) for f, g in tracks.groupby("frame_index")}
-        lm = load_lane_map("cuenca")
+        lm = load_lane_map(site_id)
         self.angle = {arm: lane_angle_towards_stop(tr.lane.getShape(ae.entry_edge + "_0"))
-                      for arm, ae in lm.arms.items()}
+                      for arm, ae in lm.arms.items() if ae.entry_edge}
         # axis and angle PER LANE (anchoring per the position.py doctrine — lateral to the
         # lane center, homographic longitudinal via longitudinal_pos; straight lines verified)
         self.lane_axis, self.lane_angle = {}, {}
         for arm, ae in lm.arms.items():
+            if not ae.entry_edge:
+                continue
             for k, idx in ae.entry_lanes.items():
                 shape = tr.lane.getShape(f"{ae.entry_edge}_{idx}")
                 self.lane_axis[(arm, int(k))] = lane_axis_from_shape(shape)
@@ -579,7 +619,7 @@ class WaitingBoxLayer:
         self._AlphaBeta, self._longpos = AlphaBetaFilter, longitudinal_pos
         self._alpha_cfg = load_alpha()                     # causal filter (config, like vehicles)
         self._filters: dict[int, object] = {}
-        with open(ROOT / "config/sites/cuenca/approach_zones.yaml", encoding="utf-8") as fh:
+        with open(ROOT / f"config/sites/{site_id}/approach_zones.yaml", encoding="utf-8") as fh:
             mcfg = (yaml.safe_load(fh) or {}).get("measurement") or {}
         cross_t = {int(ch.root): ch.cross_t for ch in chains.values() if ch.cross_t is not None}
         self.trk = WaitingBoxTracker(float(mcfg.get("theta_s", 0.0)),
@@ -742,7 +782,7 @@ def render_split(veh, which: str, wb_chains=None, frames_3d=None):
     SAME reconstruction (build_veh_causal) → the vehicles match across panels."""
     import bisect
     from pathlib import Path as _P
-    stage, tr, sonda, VTYPE = _setup(veh)
+    stage, tr, sonda, VTYPE = _setup(veh, which)
     wb = WaitingBoxLayer(tr, which, wb_chains) if wb_chains is not None else None
     SHOTS.mkdir(parents=True, exist_ok=True)
     for f in SHOTS.glob("*.png"):
@@ -759,36 +799,42 @@ def render_split(veh, which: str, wb_chains=None, frames_3d=None):
     P3D = SUMO_W if frames_3d else 0
     out = OUT_DIR / (f"demo_vision_3panel_{which}.mp4" if frames_3d
                      else f"demo_causal_{which}.mp4")
-    cap = cv2.VideoCapture(str(VIDEOS[which]))
+    from digital_shadow.config.site import load_site_config
+    site_cfg = load_site_config(_site_of(which))
+    dt_v = float(1 / site_cfg.fps_ref)
+    fps_v = float(site_cfg.fps_ref)
+    cap = cv2.VideoCapture(str(VIDEOS.get(which) or site_cfg.video_path))
+    vid_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or VID_W
+    vid_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or VID_H
     n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    cw, chh = VID_W + SUMO_W + P3D, VID_H + HUD_H
+    cw, chh = vid_w + SUMO_W + P3D, vid_h + HUD_H
     ff = subprocess.Popen(["ffmpeg", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24",
-                           "-s", f"{cw}x{chh}", "-r", f"{FPS:.3f}", "-i", "-",
+                           "-s", f"{cw}x{chh}", "-r", f"{fps_v:.3f}", "-i", "-",
                            "-c:v", "libx264", "-crf", "18", "-preset", "medium",
                            "-pix_fmt", "yuv420p", str(out)], stdin=subprocess.PIPE,
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     live, written = {}, 0
-    last_3d = np.zeros((VID_H, SUMO_W, 3), np.uint8)
+    last_3d = np.zeros((vid_h, SUMO_W, 3), np.uint8)
     for fi in range(n_frames):
         ok, vid_frame = cap.read()
         if not ok:
             break
-        t = fi * DT
+        t = fi * dt_v
         if wb:
             wb.draw(t)
         active = place_causal(stage, tr, veh, live, sonda, t, VTYPE)
         tr.simulationStep(t)
         shot = SHOTS / f"s_{fi % 8:d}.png"
-        tr.gui.screenshot("View #0", str(shot), width=SUMO_W, height=VID_H)
+        tr.gui.screenshot("View #0", str(shot), width=SUMO_W, height=vid_h)
         tr.simulationStep(t + 0.001)
         sumo_img = cv2.imread(str(shot))
         if sumo_img is None:
             continue
-        if sumo_img.shape[:2] != (VID_H, SUMO_W):
-            sumo_img = cv2.resize(sumo_img, (SUMO_W, VID_H))
+        if sumo_img.shape[:2] != (vid_h, SUMO_W):
+            sumo_img = cv2.resize(sumo_img, (SUMO_W, vid_h))
         canvas = np.zeros((chh, cw, 3), np.uint8)
-        canvas[HUD_H:, :VID_W] = vid_frame
-        canvas[HUD_H:, VID_W:VID_W + SUMO_W] = sumo_img
+        canvas[HUD_H:, :vid_w] = vid_frame
+        canvas[HUD_H:, vid_w:vid_w + SUMO_W] = sumo_img
         if frames_3d:
             i = bisect.bisect_left(seqs3d, fi)          # 3D of the seq closest to fi
             if i >= len(seqs3d):
@@ -797,10 +843,10 @@ def render_split(veh, which: str, wb_chains=None, frames_3d=None):
                 i -= 1
             img3 = cv2.imread(str(d3d[seqs3d[i]]))
             if img3 is not None:
-                if img3.shape[:2] != (VID_H, SUMO_W):
-                    img3 = cv2.resize(img3, (SUMO_W, VID_H))
+                if img3.shape[:2] != (vid_h, SUMO_W):
+                    img3 = cv2.resize(img3, (SUMO_W, vid_h))
                 last_3d = img3
-            canvas[HUD_H:, VID_W + SUMO_W:] = last_3d    # missing frame → repeat the last
+            canvas[HUD_H:, vid_w + SUMO_W:] = last_3d    # missing frame → repeat the last
             hud3(canvas, t, active)
         else:
             hud(canvas, t, active)
@@ -850,7 +896,9 @@ def vision_hello_fields(which):
     dims from the vTypes (single source); md5 of network and tracks."""
     import hashlib
     from run_harness_viz import VTYPE, VTYPE_DEF
-    net = ROOT / "config/sites/cuenca/sumo/zona_final.net.xml"
+    from digital_shadow.config.site import load_site_config
+    site_id = _site_of(which)
+    net = _net_path_for(site_id)
     tracks = ROOT / DATA[which][0]
 
     def _md5(p):
@@ -858,7 +906,8 @@ def vision_hello_fields(which):
     dims = {vc: {"length_m": VTYPE_DEF[vt][2], "width_m": VTYPE_DEF[vt][3]}
             for vc, vt in VTYPE.items()}
     return {
-        "shadow": "vision", "mode": "replay", "dt": DT, "site": "cuenca",
+        "shadow": "vision", "mode": "replay",
+        "dt": float(1 / load_site_config(site_id).fps_ref), "site": site_id,
         "frame_geometry": None,                          # demo base: no bbox_px
         "net_md5": _md5(net), "artifact_md5": {"tracks_csv": _md5(tracks)},
         "guard_mode": "assert",
@@ -869,27 +918,32 @@ def vision_hello_fields(which):
 
 
 def run_live(veh, which: str, wb_chains=None, tid_root=None, ws_em=None):
+    from digital_shadow.config.site import load_site_config
     from digital_shadow.sumo.presentation import load_handoff_max_hold
-    stage, tr, sonda, VTYPE = _setup(veh)
+    site_id = _site_of(which)
+    site_cfg = load_site_config(site_id)
+    dt_v = float(1 / site_cfg.fps_ref)
+    stage, tr, sonda, VTYPE = _setup(veh, which)
     wb = WaitingBoxLayer(tr, which, wb_chains) if wb_chains is not None else None
     # handoff registry: only if there are boxes AND the {tid→root} map.
-    handoff = (HandoffRegistry(tid_root, load_handoff_max_hold("cuenca"))
+    handoff = (HandoffRegistry(tid_root, load_handoff_max_hold(site_id))
                if (wb is not None and tid_root is not None) else None)
     if ws_em is not None:
         ws_em.emit_hello()                               # first line, BEFORE the loop
+    vid_path = VIDEOS.get(which) or site_cfg.video_path
     proc = subprocess.Popen(["ffplay", "-an", "-autoexit", "-loglevel", "quiet",
                              "-window_title", "VIDEO (realidad)", "-x", "900",
-                             str(VIDEOS[which])], stdout=subprocess.DEVNULL,
+                             str(vid_path)], stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
     time.sleep(0.6)
-    cap = cv2.VideoCapture(str(VIDEOS[which]))
+    cap = cv2.VideoCapture(str(vid_path))
     n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)); cap.release()
     live = {}
     marks = []
     T0 = time.perf_counter()
     try:
         for fi in range(n):
-            t_v = fi * DT
+            t_v = fi * dt_v
             if wb:
                 wb.draw(t_v)
             prov_out = {}                                # {vid: provenance} decided
@@ -928,8 +982,9 @@ def run_readout(veh, which: str):
     full causal placement → *_causal_completo.csv (the pre-causal one is kept separately)."""
     from collections import Counter
     from digital_shadow.sumo.lane_map import load_lane_map
-    stage, tr, sonda, VTYPE = _setup(veh)
-    lm = load_lane_map("cuenca")
+    site_id = _site_of(which)
+    stage, tr, sonda, VTYPE = _setup(veh, which)
+    lm = load_lane_map(site_id)
     t_end = max(float(v["t"][-1]) + v["delay"] for v in veh.values()) + sonda.timeout_s
     rows, live = [], {}
     for fi in range(int(t_end / DT) + 2):
@@ -971,7 +1026,7 @@ def run_readout(veh, which: str):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--video", choices=["tramo", "largo", "cuenca"], default="cuenca")
+    ap.add_argument("--video", choices=["tramo", "largo", "cuenca", "cuenca_oeste"], default="cuenca")
     ap.add_argument("--live", action="store_true")
     ap.add_argument("--readout", action="store_true")
     ap.add_argument("--waiting-boxes", action="store_true",

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-05-22 09:37:29 by Eclipse SUMO netedit Version 1.12.0
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <route id="r_este_norte" edges="E1 -E5"/>
+    <route id="r_este_oeste" edges="E1 -E3"/>
+    <route id="r_este_sur" edges="E1 -E6"/>
+    <route id="r_norte_oeste" edges="E5 -E3"/>
+    <route id="r_norte_sur" edges="E5 -E6"/>
+    <route id="r_norte_este" edges="E5 -E1"/>
+    <route id="r_oeste_este" edges="E3 -E1 -E0"/>
+    <route id="r_oeste_norte" edges="E3 -E5"/>
+    <route id="r_oeste_sur" edges="E3 -E6"/>
+    <route id="r_sur_este" edges="E6 -E1 -E0"/>
+    <route id="r_sur_norte" edges="E6 -E5"/>
+    <route id="r_sur_oeste" edges="E6 -E3"/>
+
+    <!-- Synthetic background flows: 120 veh/h per through movement, 60 per turn -->
+    <flow id="f_este_norte"  route="r_este_norte"  begin="0" end="3600" vehsPerHour="60"  departLane="best"/>
+    <flow id="f_este_oeste"  route="r_este_oeste"  begin="0" end="3600" vehsPerHour="120" departLane="best"/>
+    <flow id="f_este_sur"    route="r_este_sur"    begin="0" end="3600" vehsPerHour="60"  departLane="best"/>
+    <flow id="f_norte_oeste" route="r_norte_oeste" begin="0" end="3600" vehsPerHour="60"  departLane="best"/>
+    <flow id="f_norte_sur"   route="r_norte_sur"   begin="0" end="3600" vehsPerHour="120" departLane="best"/>
+    <flow id="f_norte_este"  route="r_norte_este"  begin="0" end="3600" vehsPerHour="60"  departLane="best"/>
+    <flow id="f_oeste_este"  route="r_oeste_este"  begin="0" end="3600" vehsPerHour="120" departLane="best"/>
+    <flow id="f_oeste_norte" route="r_oeste_norte" begin="0" end="3600" vehsPerHour="60"  departLane="best"/>
+    <flow id="f_oeste_sur"   route="r_oeste_sur"   begin="0" end="3600" vehsPerHour="60"  departLane="best"/>
+    <flow id="f_sur_este"    route="r_sur_este"    begin="0" end="3600" vehsPerHour="60"  departLane="best"/>
+    <flow id="f_sur_norte"   route="r_sur_norte"   begin="0" end="3600" vehsPerHour="120" departLane="best"/>
+    <flow id="f_sur_oeste"   route="r_sur_oeste"   begin="0" end="3600" vehsPerHour="60"  departLane="best"/>
+</routes>

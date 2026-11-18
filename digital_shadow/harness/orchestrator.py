@@ -83,7 +83,7 @@ class ChainState:
         # entry_arm: from the median of the first WINDOW positions (head)
         if self.entry_arm is None and len(self.fr) >= dte.WINDOW_FRAMES:
             head = np.array([np.median(self.gx[:dte.WINDOW_FRAMES]), np.median(self.gy[:dte.WINDOW_FRAMES])])
-            self.entry_arm = dte.arm_of(head, self.h.center, dte.CORE_RADIUS_PX)
+            self.entry_arm = dte.arm_of(head, self.h.center, dte.CORE_RADIUS_PX, stop_lines=self.h.stop_lines)
             if self.entry_arm != dte.CORE:
                 self.positioner = VehiclePositioner(self.entry_arm, self.h.lane_map, self.h.H, self.h.alpha)
                 self.route.arm = self.entry_arm
@@ -161,7 +161,7 @@ class ChainState:
             return None
         g = pd.DataFrame({"frame_index": self.fr, "timestamp_s": self.ts, GROUND_X: self.gx, GROUND_Y: self.gy})
         tail = np.array([np.median(self.gx[-dte.WINDOW_FRAMES:]), np.median(self.gy[-dte.WINDOW_FRAMES:])])
-        exit_arm = dte.arm_of(tail, self.h.center, dte.CORE_RADIUS_PX)
+        exit_arm = dte.arm_of(tail, self.h.center, dte.CORE_RADIUS_PX, stop_lines=self.h.stop_lines)
         exit_t = None
         f, t = self.fr[-1], self.ts[-1]
         self.exit_done = True

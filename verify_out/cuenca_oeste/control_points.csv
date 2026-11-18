@@ -1,0 +1,9 @@
+id,arm,world_x,world_y,frame,pixel_x,pixel_y,available,description
+norte_izq,norte,172.71,108.10,data/sources/cuenca_oeste/interseccion_A.mp4,132.23,275.08,True,Marca el punto norte_izq (brazo norte)
+norte_der,norte,178.64,107.45,data/sources/cuenca_oeste/interseccion_A.mp4,277.49,261.24,True,Marca el punto norte_der (brazo norte)
+sur_izq,sur,170.30,93.76,data/sources/cuenca_oeste/interseccion_A.mp4,347.82,449.17,True,Marca el punto sur_izq (brazo sur)
+sur_der,sur,176.43,92.65,data/sources/cuenca_oeste/interseccion_A.mp4,591.08,370.77,True,Marca el punto sur_der (brazo sur)
+este_arr,este,182.29,102.95,data/sources/cuenca_oeste/interseccion_A.mp4,445.81,270.47,True,Marca el punto este_arr (brazo este)
+este_aba,este,181.70,96.96,data/sources/cuenca_oeste/interseccion_A.mp4,549.58,316.58,True,Marca el punto este_aba (brazo este)
+oeste_arr,oeste,167.69,104.58,data/sources/cuenca_oeste/interseccion_A.mp4,72.28,311.97,True,Marca el punto oeste_arr (brazo oeste)
+oeste_aba,oeste,167.04,98.65,data/sources/cuenca_oeste/interseccion_A.mp4,96.49,404.20,True,Marca el punto oeste_aba (brazo oeste)

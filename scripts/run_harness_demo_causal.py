@@ -40,7 +40,7 @@ AVISO = """
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--video", choices=["tramo", "largo", "cuenca"], default="cuenca")
+    ap.add_argument("--video", choices=["tramo", "largo", "cuenca", "cuenca_oeste"], default="cuenca")
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--split", action="store_true", help="renderiza el mp4 split en vez del vivo")
     mode.add_argument("--readout", action="store_true", help="volcado headless de lo dibujado")
@@ -69,7 +69,9 @@ def main() -> None:
     # stamp = common.check_provenance(INPUTS)
     stamp = {}  # Diccionario vacío para evitar error en stamp.items() con --split
     print(f"[0] guardia de procedencia OK ({len(stamp)} insumos)")
-    veh, chains, _commits, tid_root = build_veh_causal(args.video)
+    events_path = (None if args.video in ("tramo", "largo")
+                   else ROOT / f"verify_out/events/{args.video}/track_events_clean.csv")
+    veh, chains, _commits, tid_root = build_veh_causal(args.video, events_path=events_path)
     wb_chains = chains if args.waiting_boxes else None
     n_corr = sum(1 for v in veh.values() if v["exit_obs"] and v["exit_obs"] != v["exit_pred"])
     print(f"    {len(veh)} vehículos causales; {n_corr} con corrección predicho→observado")
@@ -104,7 +106,8 @@ def _run_web3d(args, veh, wb_chains, tid_root) -> None:
     from demo_causal.run_harness_causal import OUT_DIR, run_live, vision_hello_fields
     from ws_emitter.emitter import MessagesEmitter
 
-    cfg = yaml.safe_load((ROOT / "config/sites/cuenca/web3d.yaml").read_text())
+    site_id = "rusia" if args.video in ("tramo", "largo") else args.video
+    cfg = yaml.safe_load((ROOT / f"config/sites/{site_id}/web3d.yaml").read_text())
     http_host = cfg["http_host"]
     http_port = int(os.environ.get("HTTP_PORT", cfg["vision_http_port"]))
     ws_port = int(os.environ.get("WS_PORT", cfg["vision_ws_port"]))
@@ -116,7 +119,7 @@ def _run_web3d(args, veh, wb_chains, tid_root) -> None:
     # static webserver (SEPARATE process, no TraCI): direct reuse of mode 5, with the
     # vision scene (its net_md5 = the hello's, otherwise the client rejects it).
     web = subprocess.Popen(
-        [sys.executable, "-m", "ws_emitter.webserver", "--site", "cuenca",
+        [sys.executable, "-m", "ws_emitter.webserver", "--site", site_id,
          "--http-port", str(http_port), "--ws-port", str(ws_port), "--scene", scene],
         cwd=str(ROOT))
     ws_em = None

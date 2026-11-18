@@ -70,7 +70,7 @@ matching_tolerance_s: 1.0
 # the static gaps (150-205) to limit the risk of CROSSED IDENTITIES
 # (a long buffer can reassign an old ID to a wrong vehicle). Validated
 # in the re-generated video (ID survival + absence of crossings).
-lost_track_buffer_frames: 140   # ~4.73 s at 29.583 fps (= real moving max + margin)
+lost_track_buffer_frames: 15    # 0.5 s at 30 fps (retiro rápido tras cruzar, sin congelar 4.7s en la salida)
 
 # --- Gates of the re-id layer, SITE-dependent (scene/occlusion) ---
 # Re-id only compares a new track against the lost ones CLOSE in time and

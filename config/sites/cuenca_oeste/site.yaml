@@ -1,0 +1,101 @@
+# Site configuration: Rusia intersection.
+# Site-dependent parameters, separated from the pipeline logic
+# (design requirement: migrating from prerecorded video to a live camera must only
+# require replacing the source and redoing this per-site configuration; no
+# property of the concrete video is embedded in the logic).
+
+site_id: cuenca_oeste
+
+# --- Video source and observation window of the segment ---
+# t0/t1 define the window W = [t0, t1] used by the inclusion/
+# truncation rule (see docs/phase0_foundations.md, section 5). They MUST be exact
+# (not "~180 s"): they are the cut that defines the comparison universe and are
+# applied IDENTICALLY to the human ground truth and to the system output.
+video_ref: data/sources/cuenca_oeste/interseccion_A.mp4   # Cámara 2 (oeste) CFR a 30 fps.
+t0_s: 0.0              # start of the segment: the cut starts at 0 (session origin).
+t1_s: 30.0             # end of the segment. Window W = [0.0, 30.0] s (900 frames = 30.0*30/1).
+fps_ref: "30/1"        # REAL fps (r_frame_rate), 30 fps CFR.
+
+# Frame resolution (site datum; the homography and the pixel zoning need it).
+frame_width: 848       # px (= raw).
+frame_height: 478      # px (= raw).
+sample_aspect_ratio: "646:647"   # source SAR: NON-SQUARE PIXEL. Do not assume a square pixel when calibrating.
+
+# OFFICIAL image→ground-plane homography (SUMO/world coords), site calibration (15 pts,
+# cv2.findHomography LS). The POSITION piece consumes it (digital_shadow/
+# sumo/position.py) for the longitudinal axis; the lateral is set by the lane (not the homography).
+homography_ref: config/sites/cuenca_oeste/homography.npy
+
+# --- Site vocabulary ---
+# Arms of the intersection (real cardinals; the labeler knows the site and
+# the orientation, there is no ambiguous translation).
+arm_set: [norte, sur, este, oeste]
+
+# Vehicle classes = COCO classes, identical to those the detector emits, so
+# that the ground_truth <-> system mapping is 1:1 without conversion.
+# WARNING: COCO systematically confuses the car/truck boundary (SUVs, pickups,
+# light trucks). The human labels without trouble; the noise appears on the
+# detector side. Classes are NOT merged (see the limitations of the foundational doc).
+# class_set = the site's ACTIVE FILTER. In Rusia there are NO motorcycles (ground truth v2:
+# 58 car, 11 bus, 4 truck, 0 motorcycle; v1 had 3 truck — event 73 norte→sur
+# is truck), so motorcycle stays OUTSIDE the
+# active filter. It is NOT removed from the COCO vocabulary: if another site had motorcycles,
+# it comes back through its own class_set. The detector filters inference to these classes.
+class_set: [car, bus, truck]
+
+# --- Primary metric parameter (temporal matching) ---
+# Tolerance to associate a system event with a GT one by proximity of the
+# ENTRY instant in the same arm. INITIAL provisional value: it is validated
+# against the data with a sensitivity analysis (not set by eye). The sweep of
+# this parameter also serves to detect the systematic offset between the two
+# temporal references (human: line crossing; system: ground contact on entering by the corner).
+matching_tolerance_s: 1.0
+
+# --- SITE-dependent tracking parameter ---
+# Frames the tracker keeps a track unmatched before discarding it
+# (ByteTrack's lost_track_buffer). It is SITE-DEPENDENT: it is set by the
+# typical/maximum OCCLUSION duration of this site (vehicles hidden by buses), measured
+# over the video. The tracker's frame_rate is derived from fps_ref (not duplicated).
+# The site-independent parameters (thresholds) live in config/tracker.yaml.
+# Value set by MEASUREMENT + RE-EXAMINATION of the tail (scripts/measure_occlusion.py and
+# scripts/inspect_occlusion_tail.py). Re-examination: the tail is separated by
+# centroid DISPLACEMENT between before/after the gap:
+#  - displ ~0 px = STATIC objects (parking lot/queue) flickering; their gaps
+#    reach 205 frames (6.9 s) but are NOT traffic occlusion -> they do NOT size
+#    the buffer (and the parking lot is excluded downstream).
+#  - real displ = MOVING vehicles occluded by buses; confirmed maximum
+#    131 frames (4.43 s, a truck; event 7 confirmed visually: bus over the
+#    corridor). It matches the observed "~4 s".
+# 140 = real moving maximum (131) + ~7% margin; deliberately below
+# the static gaps (150-205) to limit the risk of CROSSED IDENTITIES
+# (a long buffer can reassign an old ID to a wrong vehicle). Validated
+# in the re-generated video (ID survival + absence of crossings).
+lost_track_buffer_frames: 15    # 0.5 s at 30 fps (retiro rápido tras cruzar, sin congelar 4.7s en la salida)
+
+# --- Gates of the re-id layer, SITE-dependent (scene/occlusion) ---
+# Re-id only compares a new track against the lost ones CLOSE in time and
+# space (appearance only breaks ties among a few candidates). These gates depend
+# on the site's occlusion (same rule as lost_track_buffer); the similarity
+# thresholds (site-independent) live in config/tracker.yaml.
+reid_temporal_window_frames: 140   # how long a track can be lost and still reconnect (~max occlusion)
+reid_spatial_corridor_px: 250      # max plausible displacement during the occlusion (image px)
+
+# --- Site geometry (context, not an execution parameter) ---
+# Matches SUMO's net.xml.
+# PROJECT CONVENTION (NOT SUMO's): here "salida" = a lane that goes TOWARD the
+# intersection (approach to J5); "entrada" = a lane that moves AWAY from the intersection
+# (the one that puts you onto the arm's street). SUMO uses the opposite (it calls the
+# approach "entrada"). Do not confuse when reading the counts below: the physical fact is that each
+# arm has 3 lanes TOWARD J5, and those that move away are 1 in N/S and 2 in E/W.
+# Note on the sample: the ground truth recorded few vehicles ORIGINATING in
+# north/south in the 180 s segment due to LOW REAL FLOW in that window (chance of
+# sampling the short window), NOT due to the lane geometry —toward the
+# intersection 3 lanes enter for each arm, also north/south—. The small
+# sample is reported as such; in a window of several minutes the flow would be normal.
+geometry:
+  norte_sur: "3 carriles de salida + 1 de entrada (4 en total) en cada uno"
+  este_oeste: "3 carriles de salida + 2 de entrada (5 en total) en cada uno"
+
+# --- Labeling metadata ---
+labeler: "israel"          # TODO: labeler identifier.
+label_date: "2026-06-05"       # TODO: labeling date (YYYY-MM-DD).

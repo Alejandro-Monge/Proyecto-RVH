@@ -80,10 +80,8 @@ CORE_RADIUS_PX = 120     # core radius: < every stop line (~249-442 px from the 
                          # inside the J5 box (CB vertices ~115-258 px) → isolates the center
 EXCLUSION_FRACTION = 0.5  # fraction of ground contact inside exclusion to discard the track
 
-# Image corner → cardinal mapping (site HARD-CODE, docs/site_rusia_geometry.md Section 2).
-# (left, top) -> sur ; (right, top) -> oeste ; (left, bottom) -> este ; (right, bottom) -> norte
-CORNER_TO_ARM = {(True, True): "sur", (False, True): "oeste",
-                 (True, False): "este", (False, False): "norte"}
+# Cache de líneas de pare activas para llamadas sin argumento explícito `stop_lines`.
+_ACTIVE_STOP_LINES: dict[str, np.ndarray] = {}
 CORE = "core"  # label when the point falls in the core (no clear approach mouth)
 
 # COCO ids of the site's class_set → name, VERIFIED against model.names (yolov8x):
@@ -120,11 +118,18 @@ def load_exclusion_polygons(site_id: str):
     return out, int(data["frame_width"]), int(data["frame_height"])
 
 
-def arm_of(pt: np.ndarray, center: np.ndarray, core_radius: float) -> str:
-    """Approach of the point by quadrant relative to the center; CORE if it falls inside the core."""
-    if np.hypot(*(pt - center)) <= core_radius:
+def arm_of(pt: np.ndarray, center: np.ndarray, core_radius: float,
+           stop_lines: dict[str, np.ndarray] | None = None) -> str:
+    """Clasifica el brazo por distancia euclidiana al punto medio de cada stop_line en zones.yaml;
+    retorna CORE si está dentro de `core_radius` del centro geométrico de la intersección."""
+    sl = stop_lines if stop_lines is not None else _ACTIVE_STOP_LINES
+    if not sl:
+        sl = load_stop_lines("rusia")
+    mids = {arm: np.asarray(seg, dtype=float).mean(axis=0) for arm, seg in sl.items()}
+    ref_center = np.mean(list(mids.values()), axis=0) if len(mids) >= 2 else np.asarray(center, dtype=float)
+    if np.hypot(*(np.asarray(pt, dtype=float) - ref_center)) <= core_radius:
         return CORE
-    return CORNER_TO_ARM[(pt[0] < center[0], pt[1] < center[1])]
+    return min(mids, key=lambda arm: float(np.hypot(*(np.asarray(pt, dtype=float) - mids[arm]))))
 
 
 def anchors_from_control_points(site_id: str) -> dict[str, np.ndarray]:
@@ -147,7 +152,10 @@ def load_stop_lines(site_id: str) -> dict[str, np.ndarray]:
     zones_yaml = ROOT / "config" / "sites" / site_id / "zones.yaml"
     with open(zones_yaml, "r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
-    return {arm: np.asarray(seg, dtype=float) for arm, seg in (data.get("stop_lines") or {}).items()}
+    sl = {arm: np.asarray(seg, dtype=float) for arm, seg in (data.get("stop_lines") or {}).items()}
+    _ACTIVE_STOP_LINES.clear()
+    _ACTIVE_STOP_LINES.update(sl)
+    return sl
 
 
 def load_lane_bands(site_id: str) -> dict:
@@ -257,8 +265,8 @@ def derive_events(df: pd.DataFrame, center: np.ndarray, *, window: int,
         exit_ = tail[[GROUND_X, GROUND_Y]].median().to_numpy()
         d_entry = float(np.hypot(*(entry - center)))
         d_exit = float(np.hypot(*(exit_ - center)))
-        entry_arm = arm_of(entry, center, core_radius)
-        exit_arm = arm_of(exit_, center, core_radius)
+        entry_arm = arm_of(entry, center, core_radius, stop_lines=stop_lines)
+        exit_arm = arm_of(exit_, center, core_radius, stop_lines=stop_lines)
         is_excl = tid in excluded
         complete = (entry_arm != CORE) and (exit_arm != CORE)
         status = "excluded" if is_excl else ("complete" if complete else "partial")

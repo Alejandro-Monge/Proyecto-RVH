@@ -197,9 +197,8 @@ def reconstruct_world(raw_xy: np.ndarray, ts: np.ndarray, path: np.ndarray,
         if float(ts[i] - ts[i - 1]) > 1.5 * dt_frame:          # GAP → anchor to the real reappearance
             s[i] = _nearest_arclen(path, arc, obs[i], s[i - 1], s[i - 1] + 25.0)
             is_gap_end[i] = True
-        else:                                                  # contiguous → observed forward
-            ds = float((obs[i] - obs[i - 1]) @ _tangent_at(path, arc, s[i - 1]))
-            s[i] = min(max(s[i - 1] + ds, 0.0), L)
+        else:                                                  # contiguous → monotonic projection on path
+            s[i] = _nearest_arclen(path, arc, obs[i], s[i - 1], L)
     h = 2
     s = np.array([np.median(s[max(0, i - h):i + h + 1]) for i in range(n)])
     if not reconcile:

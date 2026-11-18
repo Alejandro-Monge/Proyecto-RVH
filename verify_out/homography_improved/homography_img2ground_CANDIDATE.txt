@@ -1,8 +1,8 @@
 # Homografia MEJORADA (CANDIDATA) imagen->plano suelo (metros, marco net)
 # [X,Y,1]^T ~ H * [u,v,1]^T
 # Ajuste LS (cv2.findHomography metodo=0) con 8 puntos.
-# Residuo ajuste: media 0.451 m, max 0.791 m
-# Leave-one-out: media 0.922 m, max 1.623 m
--1.5524349350e-01  -3.9236333611e+00   4.0241355561e+02
--1.1947661439e-01  -9.6590573456e-01   1.3550906724e+02
--5.1488563489e-04  -1.0724575410e-02   1.0000000000e+00
+# Residuo ajuste: media 0.760 m, max 1.128 m
+# Leave-one-out: media 1.560 m, max 2.373 m
+ 1.9706328096e-02  -1.6243583196e+00   1.4826535493e+02
+ 7.5102332262e-02  -8.4732203916e-01   3.7176548508e+01
+ 4.1302310335e-04  -1.0081876462e-02   1.0000000000e+00
